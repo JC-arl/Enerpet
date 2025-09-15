@@ -49,7 +49,9 @@ export default (db) => {
       res.json({
         petId,
         ...data, // exp, leve, updatedAt 포함
-        updatedAt: data.updatedAt?.toDate().toISOString(),
+        updatedAt: data.updatedAt?.toDate().toLocaleString("ko-KR", {
+          timeZone: "Asia/Seoul",
+        }),
         leveledUp,
         message: leveledUp ? "레벨업 성공!" : "경험치가 추가되었습니다.",
       });

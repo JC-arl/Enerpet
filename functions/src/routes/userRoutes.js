@@ -33,10 +33,21 @@ router.get("/:uid", async (req, res) => {
         message: "해당 uid의 프로필을 찾을 수 없습니다.",
       });
     }
+    const data = doc.data();
+
+    // createdAt 변환
+    let createdAt = null;
+    if (data.createdAt && data.createdAt.toDate) {
+      createdAt = data.createdAt.toDate().toISOString("ko-KR", {
+        timeZone: "Asia/Seoul",
+      });
+    }
 
     return res.status(200).json({
-      success: true,
-      data: doc.data(),
+      data: {
+        ...data,
+        createdAt,
+      },
     });
   } catch (error) {
     console.error("프로필 조회 실패:", error);

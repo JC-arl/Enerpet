@@ -10,9 +10,9 @@ const app = express();
 app.use(express.json());
 
 // 사용자 API
-app.use("/api/v1/users", userRoutes);
+app.use("/v1/users", userRoutes);
 
 // 펫 API
-app.use("/api/v1/users", petRoutes(db));
+app.use("/v1/users", petRoutes(db));
 
 export default app;
