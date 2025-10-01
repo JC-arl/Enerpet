@@ -209,7 +209,45 @@ export default function WatchHome() {
     initializeHealthData(true);
   }, [initializeHealthData]);
 
+  //---------------//
+   // 1) 일정 주기마다 Health Connect → Firestore 저장
+  useEffect(() => {
+    if (!hasPermissions) return;
 
+    const interval = setInterval(() => {
+      initializeHealthData(false);
+    }, 60000); // 1분마다 실행
+
+    return () => clearInterval(interval);
+  }, [hasPermissions, initializeHealthData]);
+
+  // 2) Firestore 구독 (오늘 데이터 자동 반영)
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+
+    const unsubscribe = firestore()
+      .collection("healthData")
+      .where("date", "==", today)
+      .limit(1)
+      .onSnapshot((snapshot) => {
+        if (!snapshot.empty) {
+          const doc = snapshot.docs[0].data();
+          setHealthData({
+            steps: doc.steps ?? 0,
+            heartRate: doc.heartRate ?? 0,
+            calories: doc.calories ?? 0,
+            distance: doc.distance ?? 0,
+            activeCalories: doc.activeCalories ?? 0,
+          });
+        }
+      });
+
+    return () => unsubscribe();
+  }, []);
+
+  //---------------//
+
+  
   // 권한 재요청 함수
   const handlePermissionRequest = () => {
     Alert.alert(
