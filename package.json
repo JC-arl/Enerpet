@@ -1,0 +1,10 @@
+{
+  "devDependencies": {
+    "@react-native-community/cli": "^20.0.2",
+    "@react-native/typescript-config": "^0.81.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.5.2",
+    "@types/react": "^19.1.15",
+    "@types/react-native": "^0.72.8"
+  }
+}

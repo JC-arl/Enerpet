@@ -1,0 +1,55 @@
+/*buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 26
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.1.20"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+
+        classpath 'com.google.gms:google-services:4.4.0'
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject" */
+
+
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 26
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.1.20"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        classpath("com.google.gms:google-services:4.4.0") // ✅ Firebase plugin
+    }
+}
+
+allprojects { // ✅ 여기가 꼭 필요함
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
+

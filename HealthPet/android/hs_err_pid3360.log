@@ -1,0 +1,239 @@
+#
+# There is insufficient memory for the Java Runtime Environment to continue.
+# Native memory allocation (mmap) failed to map 67108864 bytes. Error detail: G1 virtual space
+# Possible reasons:
+#   The system is out of physical RAM or swap space
+#   This process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap
+# Possible solutions:
+#   Reduce memory load on the system
+#   Increase physical memory or swap space
+#   Check if swap backing store is full
+#   Decrease Java heap size (-Xmx/-Xms)
+#   Decrease number of Java threads
+#   Decrease Java thread stack sizes (-Xss)
+#   Set larger code cache with -XX:ReservedCodeCacheSize=
+#   JVM is running with Unscaled Compressed Oops mode in which the Java heap is
+#     placed in the first 4GB address space. The Java Heap base address is the
+#     maximum limit for the native heap growth. Please use -XX:HeapBaseMinAddress
+#     to set the Java Heap base and to place the Java Heap above 4GB virtual address.
+# This output file may be truncated or incomplete.
+#
+#  Out of Memory Error (os_windows.cpp:3618), pid=3360, tid=41256
+#
+# JRE version:  (17.0.16+8) (build )
+# Java VM: OpenJDK 64-Bit Server VM (17.0.16+8-LTS, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, g1 gc, windows-amd64)
+# No core dump will be written. Minidumps are not enabled by default on client versions of Windows
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: -Xmx64m -Xms64m -Dorg.gradle.appname=gradlew C:\Enerpet--watch-homescreen-restart\Enerpet--watch-homescreen\HealthPet\android\\gradle\wrapper\gradle-wrapper.jar app:installDebug -PreactNativeDevServerPort=8081
+
+Host: 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz, 8 cores, 7G,  Windows 11 , 64 bit Build 26100 (10.0.26100.5074)
+Time: Tue Sep 30 03:11:23 2025  Windows 11 , 64 bit Build 26100 (10.0.26100.5074) elapsed time: 3.071581 seconds (0d 0h 0m 3s)
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x0000018287cbb820):  JavaThread "Unknown thread" [_thread_in_vm, id=41256, stack(0x0000006cb9700000,0x0000006cb9800000)]
+
+Stack: [0x0000006cb9700000,0x0000006cb9800000]
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+V  [jvm.dll+0x685c99]
+V  [jvm.dll+0x83d9ba]
+V  [jvm.dll+0x83f47e]
+V  [jvm.dll+0x83fae3]
+V  [jvm.dll+0x24c67f]
+V  [jvm.dll+0x6829b9]
+V  [jvm.dll+0x67748a]
+V  [jvm.dll+0x30c61b]
+V  [jvm.dll+0x313b16]
+V  [jvm.dll+0x36469e]
+V  [jvm.dll+0x3648df]
+V  [jvm.dll+0x2e362c]
+V  [jvm.dll+0x2e4584]
+V  [jvm.dll+0x80f1db]
+V  [jvm.dll+0x372411]
+V  [jvm.dll+0x7edc85]
+V  [jvm.dll+0x3f60fe]
+V  [jvm.dll+0x3f7c81]
+C  [jli.dll+0x5347]
+C  [ucrtbase.dll+0x37b0]
+C  [KERNEL32.DLL+0x2e8d7]
+C  [ntdll.dll+0x8d9c]
+
+
+---------------  P R O C E S S  ---------------
+
+Threads class SMR info:
+_java_thread_list=0x00007ffad8d5ffd8, length=0, elements={
+}
+
+Java Threads: ( => current thread )
+
+Other Threads:
+  0x0000018287cdcbf0 GCTaskThread "GC Thread#0" [stack: 0x0000006cb9800000,0x0000006cb9900000] [id=36472]
+  0x0000018287cde350 ConcurrentGCThread "G1 Main Marker" [stack: 0x0000006cb9900000,0x0000006cb9a00000] [id=36584]
+  0x0000018287ce01e0 ConcurrentGCThread "G1 Conc#0" [stack: 0x0000006cb9a00000,0x0000006cb9b00000] [id=24572]
+
+[error occurred during error reporting (printing all threads), id 0xc0000005, EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007ffad8513d07]
+
+VM state: not at safepoint (not fully initialized)
+
+VM Mutex/Monitor currently owned by a thread:  ([mutex/lock_event])
+[0x0000018287cb9c90] Heap_lock - owner thread: 0x0000018287cbb820
+
+Heap address: 0x00000000fc000000, size: 64 MB, Compressed Oops mode: 32-bit
+
+CDS archive(s) mapped at: [0x0000000000000000-0x0000000000000000-0x0000000000000000), size 0, SharedBaseAddress: 0x0000000800000000, ArchiveRelocationMode: 1.
+Narrow klass base: 0x0000000000000000, Narrow klass shift: 0, Narrow klass range: 0x0
+
+GC Precious Log:
+<Empty>
+
+Heap:
+ garbage-first heap   total 0K, used 0K [0x00000000fc000000, 0x0000000100000000)
+  region size 1024K, 0 young (0K), 0 survivors (0K)
+
+[error occurred during error reporting (printing heap information), id 0xc0000005, EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007ffad88fee39]
+
+GC Heap History (0 events):
+No events
+
+Dll operation events (1 events):
+Event: 0.027 Loaded shared library C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\java.dll
+
+Deoptimization events (0 events):
+No events
+
+Classes loaded (0 events):
+No events
+
+Classes unloaded (0 events):
+No events
+
+Classes redefined (0 events):
+No events
+
+Internal exceptions (0 events):
+No events
+
+VM Operations (0 events):
+No events
+
+Memory protections (0 events):
+No events
+
+Nmethod flushes (0 events):
+No events
+
+Events (0 events):
+No events
+
+
+Dynamic libraries:
+0x00007ff7bb4e0000 - 0x00007ff7bb4ee000 	C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\java.exe
+0x00007ffb66f00000 - 0x00007ffb67169000 	C:\WINDOWS\SYSTEM32\ntdll.dll
+0x00007ffb65de0000 - 0x00007ffb65ea9000 	C:\WINDOWS\System32\KERNEL32.DLL
+0x00007ffb64380000 - 0x00007ffb64773000 	C:\WINDOWS\System32\KERNELBASE.dll
+0x00007ffb64b80000 - 0x00007ffb64ccb000 	C:\WINDOWS\System32\ucrtbase.dll
+0x00007ffb451a0000 - 0x00007ffb451b9000 	C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\jli.dll
+0x00007ffb4a460000 - 0x00007ffb4a47e000 	C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\VCRUNTIME140.dll
+0x00007ffb65eb0000 - 0x00007ffb66074000 	C:\WINDOWS\System32\USER32.dll
+0x00007ffb64780000 - 0x00007ffb647a7000 	C:\WINDOWS\System32\win32u.dll
+0x00007ffb66750000 - 0x00007ffb6677b000 	C:\WINDOWS\System32\GDI32.dll
+0x00007ffb64a50000 - 0x00007ffb64b7d000 	C:\WINDOWS\System32\gdi32full.dll
+0x00007ffb642d0000 - 0x00007ffb64373000 	C:\WINDOWS\System32\msvcp_win.dll
+0x00007ffb49470000 - 0x00007ffb49703000 	C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.5074_none_3e0d6f78e32fd63f\COMCTL32.dll
+0x00007ffb64f30000 - 0x00007ffb64fd9000 	C:\WINDOWS\System32\msvcrt.dll
+0x00007ffb65c90000 - 0x00007ffb65cbf000 	C:\WINDOWS\System32\IMM32.DLL
+0x00007ffb5cf20000 - 0x00007ffb5cf2c000 	C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\vcruntime140_1.dll
+0x00007ffb0ed00000 - 0x00007ffb0ed8d000 	C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\msvcp140.dll
+0x00007ffad8220000 - 0x00007ffad8e95000 	C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\server\jvm.dll
+0x00007ffb64cd0000 - 0x00007ffb64d84000 	C:\WINDOWS\System32\ADVAPI32.dll
+0x00007ffb66a80000 - 0x00007ffb66b26000 	C:\WINDOWS\System32\sechost.dll
+0x00007ffb66780000 - 0x00007ffb66898000 	C:\WINDOWS\System32\RPCRT4.dll
+0x00007ffb66350000 - 0x00007ffb663c4000 	C:\WINDOWS\System32\WS2_32.dll
+0x00007ffb5b710000 - 0x00007ffb5b745000 	C:\WINDOWS\SYSTEM32\WINMM.dll
+0x00007ffb54da0000 - 0x00007ffb54dab000 	C:\WINDOWS\SYSTEM32\VERSION.dll
+0x00007ffb63ef0000 - 0x00007ffb63f4e000 	C:\WINDOWS\SYSTEM32\POWRPROF.dll
+0x00007ffb63ed0000 - 0x00007ffb63ee4000 	C:\WINDOWS\SYSTEM32\UMPDC.dll
+0x00007ffb62e70000 - 0x00007ffb62e8b000 	C:\WINDOWS\SYSTEM32\kernel.appcore.dll
+0x00007ffb50920000 - 0x00007ffb5092a000 	C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\jimage.dll
+0x00007ffb61670000 - 0x00007ffb618b2000 	C:\WINDOWS\SYSTEM32\DBGHELP.DLL
+0x00007ffb663d0000 - 0x00007ffb6674b000 	C:\WINDOWS\System32\combase.dll
+0x00007ffb64e50000 - 0x00007ffb64f27000 	C:\WINDOWS\System32\OLEAUT32.dll
+0x00007ffb41480000 - 0x00007ffb414bd000 	C:\WINDOWS\SYSTEM32\dbgcore.DLL
+0x00007ffb649b0000 - 0x00007ffb64a49000 	C:\WINDOWS\System32\bcryptPrimitives.dll
+0x00007ffb38100000 - 0x00007ffb38125000 	C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\java.dll
+
+dbghelp: loaded successfully - version: 4.0.5 - missing functions: none
+symbol engine: initialized successfully - sym options: 0x614 - pdb path: .;C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin;C:\WINDOWS\SYSTEM32;C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.5074_none_3e0d6f78e32fd63f;C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin\server
+
+VM Arguments:
+jvm_args: -Xmx64m -Xms64m -Dorg.gradle.appname=gradlew 
+java_command: C:\Enerpet--watch-homescreen-restart\Enerpet--watch-homescreen\HealthPet\android\\gradle\wrapper\gradle-wrapper.jar app:installDebug -PreactNativeDevServerPort=8081
+java_class_path (initial): C:\Enerpet--watch-homescreen-restart\Enerpet--watch-homescreen\HealthPet\android\\gradle\wrapper\gradle-wrapper.jar
+Launcher Type: SUN_STANDARD
+
+[Global flags]
+     intx CICompilerCount                          = 4                                         {product} {ergonomic}
+     uint ConcGCThreads                            = 2                                         {product} {ergonomic}
+     uint G1ConcRefinementThreads                  = 8                                         {product} {ergonomic}
+   size_t G1HeapRegionSize                         = 1048576                                   {product} {ergonomic}
+    uintx GCDrainStackTargetSize                   = 64                                        {product} {ergonomic}
+   size_t InitialHeapSize                          = 67108864                                  {product} {command line}
+   size_t MarkStackSize                            = 4194304                                   {product} {ergonomic}
+   size_t MaxHeapSize                              = 67108864                                  {product} {command line}
+   size_t MinHeapDeltaBytes                        = 1048576                                   {product} {ergonomic}
+   size_t MinHeapSize                              = 67108864                                  {product} {command line}
+    uintx NonNMethodCodeHeapSize                   = 5839372                                {pd product} {ergonomic}
+    uintx NonProfiledCodeHeapSize                  = 122909434                              {pd product} {ergonomic}
+    uintx ProfiledCodeHeapSize                     = 122909434                              {pd product} {ergonomic}
+    uintx ReservedCodeCacheSize                    = 251658240                              {pd product} {ergonomic}
+     bool SegmentedCodeCache                       = true                                      {product} {ergonomic}
+   size_t SoftMaxHeapSize                          = 67108864                               {manageable} {ergonomic}
+     bool UseCompressedClassPointers               = true                           {product lp64_product} {ergonomic}
+     bool UseCompressedOops                        = true                           {product lp64_product} {ergonomic}
+     bool UseG1GC                                  = true                                      {product} {ergonomic}
+     bool UseLargePagesIndividualAllocation        = false                                  {pd product} {ergonomic}
+
+Logging:
+Log output configuration:
+ #0: stdout all=warning uptime,level,tags
+ #1: stderr all=off uptime,level,tags
+
+Environment Variables:
+JAVA_HOME=C:\zulu17.60.17-ca-jdk17.0.16-win_x64
+PATH=C:\Enerpet--watch-homescreen-restart\Enerpet--watch-homescreen\HealthPet\node_modules\.bin;C:\Enerpet--watch-homescreen-restart\Enerpet--watch-homescreen\HealthPet\node_modules\.bin;C:\Enerpet--watch-homescreen-restart\Enerpet--watch-homescreen\node_modules\.bin;C:\Enerpet--watch-homescreen-restart\node_modules\.bin;C:\node_modules\.bin;C:\nvm4w\nvm\v22.14.0\node_modules\npm\node_modules\@npmcli\run-script\lib\node-gyp-bin;C:\zulu17.60.17-ca-jdk17.0.16-win_x64\bin;C:\Python313\Scripts\;C:\Python313\;C:\windows\system32;C:\windows;C:\windows\System32\Wbem;C:\windows\System32\WindowsPowerShell\v1.0\;C:\windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA NvDLISR;C:\Program Files\Git\cmd;C:\Program Files\Python310;C:\Program Files\Python310\Lib\venv\scripts;C:\Program Files\dotnet\;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\ProgramData\chocolatey\bin;C:\Program Files\Docker\Docker\resources\bin;C:\Users\이수진\AppData\Roaming\npm;C:\Users\이수진\AppData\Local\nvm;C:\nvm4w\nodejs;C:\nvm4w\nvm;C:\nvm4w\nodejs;C:\platform-tools;C:\수진\platform-tools;C:\Android\sdk\platform-tools;C:\Android\sdk\emulator;C:\Android\sdk\tools;C:\Android\sdk\tools\bin;C:\Users\이수진\AppData\Local\pnpm;C:\Program Files\MySQL\MySQL Shell 8.0\bin\;C:\Users\?????\AppData\Local\Programs\Python\Python310\Scripts;C:\Users\?????\AppData\Local\Programs\Python\Python310\;C:\Users\?????\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\?????\AppData\Local\Programs\Python\Python311\Scripts\;C:\Users\?????\AppData\Local\Programs\Python\Python311\;C:\Users\?????\AppData\Local\Programs\Python\Python312\Scripts\;C:\Users\?????\AppData\Local\Programs\Python\Python312\;C:\Users\?????\AppData\Local\Programs\Python\Launcher\;C:\Users\이수진\AppData\Local\Microsoft\WindowsApps;C:\수진\PyCharm Community Edition 2022.1.1\bin;;C:\Users\?????;C:\Windows\system32;C:\venvs;C:\Users\?????\.conda\pkgs\conda-4.12.0-py39hcbf5309_0\Lib\site-packages\conda_env\installers\pip.py;C:\Users\?????\.conda\envs\pybook;C:\Program Files\JetBrains\PyCharm 2022.2\bin;;C:\flutter\flutter_windows_3.0.5-stable\flutter\bin;C:\flutter\flutter_windows_3.0.5-stable\flutter;C:\Users\이수진\.dotnet\tools;C:\Program Files\JetBrains\IntelliJ IDEA 2024.1.4\bin;;C:\Users\?????\AppData\Roaming\npm;C:\postgresql-17.5-2-windows-x64-binaries\pgsql\bin;C:\Users\이수진\AppData\Roaming\npm;C:\Users\이수진\AppData\Local\nvm;C:\nvm4w\nodejs;c:\Users\이수진\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\debugCommand
+USERNAME=이수진
+LANG=en_US.UTF-8
+TMPDIR=C:\Users\Public\Documents\ESTsoft\CreatorTemp
+OS=Windows_NT
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 140 Stepping 1, GenuineIntel
+TMP=C:\Users\이수진\AppData\Local\Temp
+TEMP=C:\Users\이수진\AppData\Local\Temp
+
+
+
+Periodic native trim disabled
+
+
+---------------  S Y S T E M  ---------------
+
+OS:
+ Windows 11 , 64 bit Build 26100 (10.0.26100.5074)
+OS uptime: 3 days 19:43 hours
+Hyper-V role detected
+
+CPU: total 8 (initial active 8) (4 cores per cpu, 2 threads per core) family 6 model 140 stepping 1 microcode 0xb4, cx8, cmov, fxsr, ht, mmx, 3dnowpref, sse, sse2, sse3, ssse3, sse4.1, sse4.2, popcnt, lzcnt, tsc, tscinvbit, avx, avx2, aes, erms, clmul, bmi1, bmi2, adx, avx512f, avx512dq, avx512cd, avx512bw, avx512vl, sha, fma, vzeroupper, avx512_vpopcntdq, avx512_vpclmulqdq, avx512_vaes, avx512_vnni, clflush, clflushopt, clwb, avx512_vbmi2, avx512_vbmi, hv
+Processor Information for all 8 processors :
+  Max Mhz: 2419, Current Mhz: 2419, Mhz Limit: 2419
+
+Memory: 4k page, system-wide physical 7865M (543M free)
+TotalPageFile size 32441M (AvailPageFile size 25M)
+current process WorkingSet (physical memory assigned to process): 12M, peak: 12M
+current process commit charge ("private bytes"): 59M, peak: 123M
+
+vm_info: OpenJDK 64-Bit Server VM (17.0.16+8-LTS) for windows-amd64 JRE (17.0.16+8-LTS) (Zulu17.60+17-CA), built on Jun 30 2025 16:40:41 by "zulu_re" with MS VC++ 16.10 / 16.11 (VS2019)
+
+END.
