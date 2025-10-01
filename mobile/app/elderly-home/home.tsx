@@ -1,13 +1,15 @@
-// app/(tabs)/home.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   StyleSheet,
   Pressable,
   Animated,
   View,
-  ImageBackground,
   useWindowDimensions,
+  StatusBar,
+  SafeAreaView,
+  Platform,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { HelloWave } from "@/components/HelloWave";
 import { ThemedText } from "@/components/ThemedText";
@@ -23,7 +25,6 @@ import { useGame } from "@/lib/GameContext";
 
 export default function HomeScreen() {
   const { level, exp, maxExp, setLevel, setExp, setMaxExp } = useGame();
-
   const { width: W, height: H } = useWindowDimensions();
 
   const { user, signOut } = useAuth();
@@ -41,21 +42,18 @@ export default function HomeScreen() {
 
   const [upgradable, setUpgradable] = useState(false);
 
-  // ✅ 건강 데이터 상태 (임시)
   const [heartRate, setHeartRate] = useState<number | null>(null);
   const [steps, setSteps] = useState<number | null>(null);
 
-  // ----------------------
-  // 유틸 함수
-  // ----------------------
   const guidelineW = 375;
   const guidelineH = 812;
   const scale = (size: number) => (W / guidelineW) * size;
   const vscale = (size: number) => (H / guidelineH) * size;
-  const mscale = (size: number, factor = 0.5) =>
-    size + (scale(size) - size) * factor;
+  const mscale = (size: number, factor = 0.5) => size + (scale(size) - size) * factor;
+  // 🔹 랜덤 메시지 배열
+  const bubbleMessages = ["행복해!", "즐거워!", "좋아!", "기분 최고!"];
+  const [bubbleMessage, setBubbleMessage] = useState<string | null>(null);
 
-  // 사용자 이름 불러오기
   useEffect(() => {
     let mounted = true;
     const loadName = async () => {
@@ -78,15 +76,12 @@ export default function HomeScreen() {
     };
   }, [user?.uid]);
 
-  // 로그아웃 처리
-  // onSignOut 수정
   const onSignOut = async () => {
     if (loggingOut) return;
     try {
       setLoggingOut(true);
       await signOut();
       await AsyncStorage.removeItem("authToken");
-      console.log("로그아웃 완료");
     } catch (e) {
       console.warn("로그아웃 실패:", e);
     } finally {
@@ -99,7 +94,6 @@ export default function HomeScreen() {
     setLogoutModalVisible(false);
   };
 
-  // feedModal 자동 닫기
   useEffect(() => {
     if (feedModalVisible) {
       const timer = setTimeout(() => setFeedModalVisible(false), 2000);
@@ -107,25 +101,18 @@ export default function HomeScreen() {
     }
   }, [feedModalVisible]);
 
-  // ----------------------
-  // 캐릭터 위치와 크기
-  // ----------------------
   const characterTopPx = useMemo(() => {
-    const ratio = level === 1 ? 0.45 : level === 2 ? 0.4 : 0.29;
+    const ratio = level === 1 ? 0.35 : level === 2 ? 0.32 : 0.28;
     return Math.round(H * ratio);
   }, [H, level]);
 
   const characterSize = useMemo(() => {
-    const max = 420;
-    const ratio = level === 1 ? 0.42 : level === 2 ? 0.52 : 0.7;
-    return Math.min(W * ratio, max);
+    const baseSize = level === 1 ? 120 : level === 2 ? 160 : 200;
+    return Math.min(baseSize, W * 0.5);
   }, [W, level]);
 
-  const glowSize = Math.max(characterSize * 1.1, 140);
+  const glowSize = Math.max(characterSize * 1.2, 140);
 
-  // ----------------------
-  // 건강 상태 판별
-  // ----------------------
   const getHealthStatus = () => {
     if (heartRate === null || steps === null) return "happy";
     if (heartRate < 50 || heartRate > 120) return "sad";
@@ -135,25 +122,12 @@ export default function HomeScreen() {
 
   const healthStatus = getHealthStatus();
 
-  // ----------------------
-  // 캐릭터 이미지 선택 (레벨 × 표정)
-  // ----------------------
-  const characterImage =
-    level === 1
-      ? healthStatus === "happy"
-        ? require("@/assets/images/baby-tree-happy.png")
-        : require("@/assets/images/baby-tree-sad.png")
-      : level === 2
-        ? healthStatus === "happy"
-          ? require("@/assets/images/teenager-tree-happy.png")
-          : require("@/assets/images/teenager-tree-sad.png")
-        : healthStatus === "happy"
-          ? require("@/assets/images/adult-tree-happy.png")
-          : require("@/assets/images/adult-tree-sad.png");
+  const getPetEmoji = () => {
+    if (level === 1) return healthStatus === "happy" ? "🐕" : "😥";
+    if (level === 2) return healthStatus === "happy" ? "🐩" : "😰";
+    return healthStatus === "happy" ? "🐕‍🦺" : "😞";
+  };
 
-  // ----------------------
-  // 캐릭터 클릭 시
-  // ----------------------
   const handleCharacterClick = () => {
     if (level === 3) return;
 
@@ -166,7 +140,12 @@ export default function HomeScreen() {
       return newExp;
     });
 
-    const bounce = [
+    // 🔹 랜덤 메시지 선택
+    const randomMsg = bubbleMessages[Math.floor(Math.random() * bubbleMessages.length)];
+    setBubbleMessage(randomMsg);
+
+    // 🔹 모션 한 번만 실행
+    Animated.sequence([
       Animated.timing(treeScale, {
         toValue: 1.2,
         duration: 120,
@@ -177,11 +156,15 @@ export default function HomeScreen() {
         friction: 4,
         useNativeDriver: true,
       }),
-    ];
-    Animated.sequence([...bounce, ...bounce, ...bounce]).start(() =>
-      setFeedModalVisible(true)
-    );
+    ]).start(() => {
+      setFeedModalVisible(true);
+      setTimeout(() => {
+        setFeedModalVisible(false);
+        setBubbleMessage(null);
+      }, 1500);
+    });
 
+    // 🔹 하트 뿌리기
     const count = 10;
     const newHearts = Array.from({ length: count }).map(() => {
       const id = heartId.current++;
@@ -192,6 +175,7 @@ export default function HomeScreen() {
       const rotate = Math.random() * 60 - 30;
       return { id, anim, x, y, scale: scaleH, rotate };
     });
+
     setHearts((prev) => [...prev, ...newHearts]);
     newHearts.forEach((h) => {
       Animated.timing(h.anim, {
@@ -204,9 +188,6 @@ export default function HomeScreen() {
     });
   };
 
-  // ----------------------
-  // 업그레이드
-  // ----------------------
   const handleUpgrade = () => {
     if (!upgradable) return;
     Animated.parallel([
@@ -252,7 +233,6 @@ export default function HomeScreen() {
     setUpgradable(false);
   };
 
-  // 경험치 계산
   const getProgress = () => {
     if (level === 1) return exp / 500;
     if (level === 2) return (exp - 500) / 500;
@@ -260,54 +240,58 @@ export default function HomeScreen() {
     return 0;
   };
 
-  // ----------------------
-  // 렌더링
-  // ----------------------
+  const getLevelName = () => {
+    if (level === 1) return "강아지";
+    if (level === 2) return "청년 강아지";
+    return "어른 강아지";
+  };
+
   return (
     <View style={styles.screen}>
-      <ImageBackground
-        source={require("@/assets/images/basicscreen.png")}
-        style={[styles.bg, { position: "relative" }]}
-        resizeMode="cover"
-      >
-        {/* 상단 */}
-        <View style={[styles.topRow, { padding: mscale(25) }]}>
-          <View style={[styles.leftGroup, { gap: mscale(8) }]}>
-            <ThemedText type="title" style={{ fontSize: mscale(20) }}>
-              Welcome!
-            </ThemedText>
+      <StatusBar barStyle="dark-content" />
+
+      {/* 배경 그라디언트 - 초록 계열 */}
+      <LinearGradient
+        colors={["#C8E6C9", "#E8F5E9", "#F1F8E9"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      <SafeAreaView style={styles.safeArea}>
+        {/* 상단 헤더 */}
+        <View style={styles.header}>
+          <View style={styles.leftGroup}>
+            <ThemedText style={styles.welcomeText}>안녕하세요!</ThemedText>
             {displayName ? (
-              <ThemedText
-                type="title"
-                style={[styles.nick, { fontSize: mscale(20) }]}
-              >
-                {displayName}
-              </ThemedText>
+              <View style={styles.nameRow}>
+                <ThemedText style={styles.nameText}>{displayName}님</ThemedText>
+                <HelloWave />
+              </View>
             ) : null}
-            <HelloWave />
           </View>
           <Pressable
             onPress={() => setLogoutModalVisible(true)}
             disabled={loggingOut}
             style={({ pressed }) => [
               styles.logoutBtn,
-              {
-                paddingVertical: vscale(8),
-                paddingHorizontal: mscale(14),
-                borderRadius: mscale(10),
-              },
               pressed && styles.logoutBtnPressed,
               loggingOut && { opacity: 0.6 },
             ]}
           >
-            <ThemedText style={[styles.logoutText, { fontSize: mscale(14) }]}>
-              {loggingOut ? "로그아웃 중…" : "로그아웃"}
+            <ThemedText style={styles.logoutText}>
+              {loggingOut ? "로그아웃 중..." : "로그아웃"}
             </ThemedText>
           </Pressable>
         </View>
 
-        {/* 캐릭터 + UI */}
-        <View style={[styles.centerBox, { top: characterTopPx, width: "100%" }]}>
+        {/* 펫 레벨 표시 */}
+        <View style={styles.levelBadge}>
+          <ThemedText style={styles.levelText}>{getLevelName()}</ThemedText>
+        </View>
+
+        {/* 캐릭터 영역 */}
+        <View style={[styles.centerBox, { top: characterTopPx }]}>
           <Animated.View
             style={[
               styles.glow,
@@ -320,32 +304,35 @@ export default function HomeScreen() {
               },
             ]}
           />
-          <Pressable onPress={handleCharacterClick} disabled={level === 3}>
-            <Animated.Image
-              source={characterImage}
+
+          <Pressable
+            onPress={handleCharacterClick}
+            disabled={level === 3}
+            style={styles.characterContainer}
+          >
+            <Animated.View
               style={[
-                styles.character,
+                styles.characterCircle,
                 {
                   width: characterSize,
                   height: characterSize,
+                  borderRadius: characterSize / 2,
                   transform: [{ scale: treeScale }],
                 },
               ]}
-              resizeMode="contain"
-            />
+            >
+              <ThemedText style={[styles.petEmoji, { fontSize: characterSize * 0.6 }]}>
+                {getPetEmoji()}
+              </ThemedText>
+            </Animated.View>
           </Pressable>
 
-          {/* 캐릭터 말풍선 */}
-          {feedModalVisible && (
+          {/* 말풍선 */}
+          {feedModalVisible && bubbleMessage && (
             <View style={styles.speechWrapper}>
-              <View
-                style={[
-                  styles.speechBubble,
-                  { maxWidth: Math.min(W * 0.6, 260) },
-                ]}
-              >
-                <ThemedText style={[styles.speechText, { fontSize: mscale(13) }]}>
-                  🍎 냠냠 맛있다! 🌳
+              <View style={styles.speechBubble}>
+                <ThemedText style={styles.speechText}>
+                  {bubbleMessage}
                 </ThemedText>
                 <View style={styles.speechArrow} />
               </View>
@@ -358,7 +345,6 @@ export default function HomeScreen() {
               key={h.id}
               style={[
                 styles.heart,
-                { fontSize: mscale(28) },
                 {
                   opacity: h.anim.interpolate({
                     inputRange: [0, 1],
@@ -397,71 +383,52 @@ export default function HomeScreen() {
             </Animated.Text>
           ))}
 
-          {/* 경험치 + 업그레이드 */}
+          {/* 경험치 바 */}
           <View style={styles.expBarBox}>
-            <View
-              style={[
-                styles.expBarBg,
-                {
-                  width: Math.min(W * 0.86, 560),
-                  height: Math.max(14, vscale(18)),
-                  borderRadius: mscale(10),
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.expBarFill,
-                  { width: `${getProgress() * 100}%` },
-                ]}
+            <View style={styles.expBarBg}>
+              <LinearGradient
+                colors={["#66BB6A", "#81C784"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.expBarFill, { width: `${getProgress() * 100}%` }]}
               />
             </View>
-            <ThemedText style={[styles.expText, { fontSize: mscale(14) }]}>
+            <ThemedText style={styles.expText}>
               {exp} / {maxExp} EXP
             </ThemedText>
           </View>
 
+          {/* 업그레이드 버튼 */}
           {upgradable && (
-            <Pressable
-              style={[
-                styles.upgradeBtn,
-                {
-                  marginTop: vscale(20),
-                  paddingVertical: vscale(10),
-                  paddingHorizontal: mscale(20),
-                  borderRadius: mscale(10),
-                },
-              ]}
-              onPress={handleUpgrade}
-            >
-              <ThemedText style={[styles.upgradeText, { fontSize: mscale(16) }]}>
-                업그레이드!
-              </ThemedText>
+            <Pressable style={styles.upgradeBtn} onPress={handleUpgrade}>
+              <LinearGradient
+                colors={["#66BB6A", "#4CAF50"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.upgradeBtnGradient}
+              >
+                <ThemedText style={styles.upgradeText}>✨ 업그레이드!</ThemedText>
+              </LinearGradient>
             </Pressable>
           )}
 
+          {/* 리셋 버튼 */}
           {level === 3 && (
-            <Pressable
-              style={[
-                styles.resetBtn,
-                {
-                  marginTop: vscale(12),
-                  paddingVertical: vscale(8),
-                  paddingHorizontal: mscale(18),
-                  borderRadius: mscale(10),
-                },
-              ]}
-              onPress={handleReset}
-            >
-              <ThemedText style={[styles.resetText, { fontSize: mscale(14) }]}>
-                아가로 돌아가기
-              </ThemedText>
+            <Pressable style={styles.resetBtn} onPress={handleReset}>
+              <ThemedText style={styles.resetText}>강아지로 돌아가기</ThemedText>
             </Pressable>
           )}
         </View>
-      </ImageBackground>
 
-      {/* ✅ 로그아웃 확인 모달 */}
+        {/* 하단 안내 */}
+        <View style={styles.footer}>
+          <ThemedText style={styles.footerText}>
+            {level === 3 ? "강아지가 다 자랐어요!" : "강아지를 터치해서 경험치를 얻어보세요!"}
+          </ThemedText>
+        </View>
+      </SafeAreaView>
+
+      {/* 로그아웃 모달 */}
       <LogoutConfirmModal
         visible={logoutModalVisible}
         loading={loggingOut}
@@ -469,16 +436,15 @@ export default function HomeScreen() {
         onConfirm={async () => {
           setLogoutModalVisible(false);
           await onSignOut();
-          setLogoutSuccessVisible(true); // 완료 모달 열기
+          setLogoutSuccessVisible(true);
         }}
       />
 
-      {/* ✅ 로그아웃 완료 모달 */}
       <LogoutSuccessModal
         visible={logoutSuccessVisible}
         onClose={() => {
           setLogoutSuccessVisible(false);
-          router.replace("/sign-in?role=elderly"); // ✅ 확인 누르면 로그인 화면 이동
+          router.replace("/sign-in?role=elderly");
         }}
       />
     </View>
@@ -487,29 +453,61 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  bg: { flex: 1, width: "100%", height: "100%" },
+  safeArea: { flex: 1 },
 
-  topRow: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    padding: 24,
+    paddingTop: 16,
   },
-  leftGroup: { flexDirection: "row", alignItems: "center" },
-  nick: {},
+  leftGroup: {
+    gap: 4,
+  },
+  welcomeText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4CAF50",
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  nameText: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#2E7D32",
+  },
 
-  // ✅ 로그아웃 버튼 색상 (노인용 - 파란 계열)
   logoutBtn: {
-    borderWidth: 1,
-    borderColor: "#1976D2",   // 진한 파란색 테두리
-    backgroundColor: "#2196F3", // 기본 파란색 배경
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "#66BB6A",
   },
   logoutBtnPressed: {
-    backgroundColor: "#1976D2", // 눌렀을 때 진한 파란색
-    borderColor: "#0D47A1",     // 더 진한 남색 테두리
+    backgroundColor: "#4CAF50",
   },
   logoutText: {
-    color: "#FFF", // 텍스트 흰색
+    color: "#FFF",
     fontWeight: "600",
+    fontSize: 14,
+  },
+
+  levelBadge: {
+    alignSelf: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  levelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#2E7D32",
   },
 
   centerBox: {
@@ -519,53 +517,141 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  character: {},
+
   glow: {
     position: "absolute",
-    backgroundColor: "rgba(255, 215, 0, 0.5)",
+    backgroundColor: "rgba(102, 187, 106, 0.3)",
     zIndex: -1,
   },
 
-  expBarBox: { marginTop: 20, alignItems: "center" },
-  expBarBg: { backgroundColor: "#EEE", overflow: "hidden" },
-  expBarFill: { height: "100%", backgroundColor: "#FFC107" },
-  expText: { marginTop: 6, fontWeight: "600", color: "#333" },
+  characterContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  characterCircle: {
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#4CAF50",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  petEmoji: {
+    textAlign: "center",
+  },
 
-  // ✅ 업그레이드 버튼 (초록)
-  upgradeBtn: { backgroundColor: "#4CAF50" },
-  upgradeText: { color: "#FFF", fontWeight: "700" },
+  expBarBox: {
+    marginTop: 32,
+    alignItems: "center",
+    width: "100%",
+    paddingHorizontal: 24,
+  },
+  expBarBg: {
+    width: "100%",
+    maxWidth: 300,
+    height: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    borderRadius: 10,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#C8E6C9",
+  },
+  expBarFill: {
+    height: "100%",
+    borderRadius: 8,
+  },
+  expText: {
+    marginTop: 8,
+    fontWeight: "700",
+    color: "#2E7D32",
+    fontSize: 14,
+  },
 
-  // ✅ 리셋 버튼 (빨강)
-  resetBtn: { backgroundColor: "#E53935" },
-  resetText: { color: "#FFF", fontWeight: "700" },
+  upgradeBtn: {
+    marginTop: 24,
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#4CAF50",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  upgradeBtnGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+  },
+  upgradeText: {
+    color: "#FFF",
+    fontWeight: "800",
+    fontSize: 18,
+  },
 
-  heart: { position: "absolute", color: "red", top: -30 },
+  resetBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: "#FF7043",
+  },
+  resetText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+
+  heart: {
+    position: "absolute",
+    fontSize: 28,
+    top: -30,
+  },
 
   speechWrapper: {
     position: "absolute",
     bottom: "100%",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 16,
   },
   speechBubble: {
-    backgroundColor: "#FFF",
-    padding: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#DDD",
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#C8E6C9",
+    maxWidth: 200,
   },
-  speechText: { color: "#333", textAlign: "center" },
+  speechText: {
+    color: "#2E7D32",
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   speechArrow: {
     position: "absolute",
-    bottom: -6,
+    bottom: -8,
     left: "50%",
-    marginLeft: -6,
-    width: 12,
-    height: 12,
-    backgroundColor: "#FFF",
-    borderLeftWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#DDD",
+    marginLeft: -8,
+    width: 16,
+    height: 16,
+    backgroundColor: "#FFFFFF",
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: "#C8E6C9",
     transform: [{ rotate: "45deg" }],
+  },
+
+  footer: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  footerText: {
+    fontSize: 13,
+    color: "#66BB6A",
+    fontWeight: "600",
   },
 });
