@@ -1,15 +1,15 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { auth, db } from "./firebase";
 import {
   createUserWithEmailAndPassword,
+  onAuthStateChanged,
   signInWithEmailAndPassword,
   updateProfile,
-  onAuthStateChanged,
   User,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { auth, db } from "./firebase";
 
-type SignInResult = { uid: string; name: string; role?: string; elderlyName?: string };
+type SignInResult = { uid: string; name: string; role?: string };
 
 type AuthContextValue = {
   user: User | null;
@@ -18,13 +18,12 @@ type AuthContextValue = {
     name: string,
     email: string,
     password: string,
-    role: "guardian" | "elderly",
-    elderlyName?: string
+    role: "guardian" | "elderly"
   ) => Promise<void>;
   signIn: (
     email: string,
     password: string,
-    expectedRole?: "guardian" | "elderly" // ✅ 추가
+    expectedRole?: "guardian" | "elderly"
   ) => Promise<SignInResult>;
   signOut: () => Promise<void>;
 };
@@ -43,21 +42,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsub;
   }, []);
 
+  // ✅ 회원가입
   const signUp = async (
     name: string,
     email: string,
     password: string,
-    role: "guardian" | "elderly",
-    elderlyName?: string
+    role: "guardian" | "elderly"
   ): Promise<void> => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
 
-    // 1) Firebase Auth 프로필 업데이트
+    // Firebase Auth displayName 업데이트
     if (auth.currentUser && name) {
       await updateProfile(auth.currentUser, { displayName: name });
     }
 
-    // 2) Firestore에 role 포함해서 저장
+    // Firestore에 계정 기본 정보 저장
     await setDoc(
       doc(db, "users", cred.user.uid),
       {
@@ -65,25 +64,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name,
         email,
         role,
-        elderlyName: role === "guardian" ? elderlyName || "" : null,
         createdAt: serverTimestamp(),
       },
       { merge: true }
     );
 
-    // 회원가입 후 자동 로그인 방지
+    // 자동 로그인 방지 → 회원가입 후 바로 로그인 안 되게끔
     await auth.signOut();
   };
 
+  // ✅ 로그인
   const signIn = async (
     email: string,
     password: string,
-    expectedRole?: "guardian" | "elderly" // ✅ role 검증
+    expectedRole?: "guardian" | "elderly"
   ): Promise<SignInResult> => {
     const cred = await signInWithEmailAndPassword(auth, email, password);
     let name = cred.user.displayName ?? "";
     let role: string | undefined;
-    let elderlyName: string | undefined;
 
     // Firestore에서 사용자 데이터 가져오기
     const snap = await getDoc(doc(db, "users", cred.user.uid));
@@ -91,10 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = snap.data() as any;
       name = data.name || name;
       role = data.role;
-      elderlyName = data.elderlyName;
     }
 
-    // 🚨 로그인 페이지의 role과 Firestore에 저장된 role이 다르면 차단
+    // 🚨 role 검증
     if (expectedRole && role !== expectedRole) {
       await auth.signOut();
       throw new Error(
@@ -104,9 +101,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
-    return { uid: cred.user.uid, name: name || "사용자", role, elderlyName };
+    return { uid: cred.user.uid, name: name || "사용자", role };
   };
 
+  // ✅ 로그아웃
   const signOut = async (): Promise<void> => {
     await auth.signOut();
   };

@@ -1,8 +1,8 @@
 import LogoutConfirmModal from "@/components/LogoutConfirmModal";
 import LogoutSuccessModal from "@/components/LogoutSuccessModal";
 import { useAuth } from "@/lib/auth";
+import { db } from "@/lib/firebase"; // ✅ Firestore 가져오기
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import firestore from "@react-native-firebase/firestore";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -15,6 +15,20 @@ import {
   View,
 } from "react-native";
 
+// ✅ Firestore 웹 SDK 함수들
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  limit,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "firebase/firestore";
+
 const { HealthModule } = NativeModules;
 
 type HealthRecord = {
@@ -26,7 +40,8 @@ type HealthRecord = {
 };
 
 export default function DetailScreen() {
-  const { signOut } = useAuth();
+  // ✅ auth에서 role, elderlyId도 같이 가져옴
+  const { user, role, elderlyId, signOut } = useAuth();
 
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -35,7 +50,7 @@ export default function DetailScreen() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // ✅ Health Connect에서 데이터 가져오기 및 Firestore 저장
+  // ✅ Health Connect → Firestore 저장
   const fetchAndSaveHealthData = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) {
@@ -52,37 +67,42 @@ export default function DetailScreen() {
       // 네이티브 모듈 호출
       const data = await HealthModule.getTodayHealthData();
 
-      // Firestore에 저장/업데이트
-      const existing = await firestore()
-        .collection("healthData")
-        .where("date", "==", today)
-        .limit(1)
-        .get();
+      // 🔑 대상 uid: 보호자라면 elderlyId, 피보호자라면 본인 uid
+      const targetUid = role === "guardian" ? elderlyId : user?.uid;
+      if (!targetUid) throw new Error("uid를 확인할 수 없습니다.");
+
+      // Firestore에서 오늘 데이터 검색
+      const q = query(
+        collection(db, "healthData"),
+        where("uid", "==", targetUid),
+        where("date", "==", today),
+        limit(1)
+      );
+      const existing = await getDocs(q);
 
       if (existing.empty) {
-        await firestore().collection("healthData").add({
+        await addDoc(collection(db, "healthData"), {
+          uid: targetUid, // 🔑 uid 저장
           heartRate: data.heartRate ?? 0,
           steps: data.steps ?? 0,
           calories: data.calories ?? 0,
           distance: data.distance ?? 0,
           activeCalories: data.activeCalories ?? 0,
           date: today,
-          timestamp: firestore.FieldValue.serverTimestamp(),
+          timestamp: serverTimestamp(),
         });
-        console.log("헬스 데이터가 Firestore에 저장되었습니다.");
+        console.log("헬스 데이터 Firestore에 저장 완료");
       } else {
-        await firestore()
-          .collection("healthData")
-          .doc(existing.docs[0].id)
-          .update({
-            heartRate: data.heartRate ?? 0,
-            steps: data.steps ?? 0,
-            calories: data.calories ?? 0,
-            distance: data.distance ?? 0,
-            activeCalories: data.activeCalories ?? 0,
-            timestamp: firestore.FieldValue.serverTimestamp(),
-          });
-        console.log("헬스 데이터가 Firestore에 업데이트되었습니다.");
+        const docId = existing.docs[0].id;
+        await updateDoc(doc(db, "healthData", docId), {
+          heartRate: data.heartRate ?? 0,
+          steps: data.steps ?? 0,
+          calories: data.calories ?? 0,
+          distance: data.distance ?? 0,
+          activeCalories: data.activeCalories ?? 0,
+          timestamp: serverTimestamp(),
+        });
+        console.log("헬스 데이터 Firestore에 업데이트 완료");
       }
     } catch (err) {
       console.error("건강 데이터 처리 오류:", err);
@@ -90,54 +110,65 @@ export default function DetailScreen() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [role, elderlyId, user]);
 
-  // 초기 데이터 로딩
+  // 초기 로딩
   useEffect(() => {
     fetchAndSaveHealthData(true);
   }, [fetchAndSaveHealthData]);
 
-  // 1) 일정 주기마다 Health Connect → Firestore 저장 (1분마다)
+  // 일정 주기마다 Health Connect → Firestore 저장 (1분마다)
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAndSaveHealthData(false);
     }, 60000); // 1분마다
-
     return () => clearInterval(interval);
   }, [fetchAndSaveHealthData]);
 
-  // 2) Firestore 실시간 구독 (오늘 데이터 자동 반영)
+  // ✅ Firestore 실시간 구독 (오늘 데이터 반영)
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
+    const targetUid = role === "guardian" ? elderlyId : user?.uid;
+    if (!targetUid) return;
 
-    const unsubscribe = firestore()
-      .collection("healthData")
-      .where("date", "==", today)
-      .limit(1)
-      .onSnapshot((snapshot) => {
-        if (!snapshot.empty) {
-          const doc = snapshot.docs[0].data();
-          
-          // 현재 시간으로 타임스탬프 생성
-          const now = new Date();
-          const timeString = `${today} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-          
-          // UI용 레코드 생성
-          const newRecord: HealthRecord = {
-            id: 1,
-            timestamp: timeString,
-            heart_rate: doc.heartRate ?? 0,
-            steps: doc.steps ?? 0,
-            calories: doc.calories ?? 0,
-          };
+    const q = query(
+      collection(db, "healthData"),
+      where("uid", "==", targetUid),
+      where("date", "==", today),
+      limit(1)
+    );
 
-          setRecords([newRecord]);
-        }
-      });
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const docData = snapshot.docs[0].data();
+
+        // 현재 시간으로 타임스탬프 생성
+        const now = new Date();
+        const timeString = `${today} ${now
+          .getHours()
+          .toString()
+          .padStart(2, "0")}:${now
+          .getMinutes()
+          .toString()
+          .padStart(2, "0")}`;
+
+        // UI용 레코드
+        const newRecord: HealthRecord = {
+          id: 1,
+          timestamp: timeString,
+          heart_rate: docData.heartRate ?? 0,
+          steps: docData.steps ?? 0,
+          calories: docData.calories ?? 0,
+        };
+
+        setRecords([newRecord]);
+      }
+    });
 
     return () => unsubscribe();
-  }, []);
+  }, [role, elderlyId, user]);
 
+  // 로그아웃 처리
   const onSignOut = async () => {
     if (loggingOut) return;
     try {
@@ -206,7 +237,7 @@ export default function DetailScreen() {
         </View>
       </View>
 
-      {/* 타임라인 리스트 */}
+      {/* 타임라인 */}
       <FlatList
         data={records}
         keyExtractor={(item) => item.id.toString()}
@@ -218,26 +249,23 @@ export default function DetailScreen() {
                 {item.timestamp.split(" ")[1]}
               </Text>
             </View>
-
             <View style={styles.timelineTrack}>
               <View style={styles.timelineDot} />
               {index !== records.length - 1 && (
                 <View style={styles.timelineLine} />
               )}
             </View>
-
             <View style={styles.dataCard}>
               <View style={styles.dataRow}>
                 <View style={styles.dataItem}>
                   <Text style={styles.dataIcon}>❤️</Text>
                   <View>
                     <Text style={styles.dataValue}>
-                      {item.heart_rate > 0 ? item.heart_rate : '-'}
+                      {item.heart_rate > 0 ? item.heart_rate : "-"}
                     </Text>
                     <Text style={styles.dataLabel}>심박수</Text>
                   </View>
                 </View>
-
                 <View style={styles.dataItem}>
                   <Text style={styles.dataIcon}>👣</Text>
                   <View>
@@ -247,7 +275,6 @@ export default function DetailScreen() {
                     <Text style={styles.dataLabel}>걸음 수</Text>
                   </View>
                 </View>
-
                 <View style={styles.dataItem}>
                   <Text style={styles.dataIcon}>🔥</Text>
                   <View>
@@ -314,10 +341,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerDate: { fontSize: 15, color: "#E3F2FD", fontWeight: "500" },
-  headerButtons: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  headerButtons: { flexDirection: "row", gap: 8 },
   refreshBtn: {
     backgroundColor: "#1976D2",
     paddingVertical: 10,
@@ -353,12 +377,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#E3F2FD",
   },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: "#E3F2FD",
-    marginTop: 4,
-  },
+  timelineLine: { width: 2, flex: 1, backgroundColor: "#E3F2FD", marginTop: 4 },
   dataCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -380,11 +399,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 40,
   },
-  emptyText: {
-    fontSize: 16,
-    color: "#64748B",
-    marginBottom: 16,
-  },
+  emptyText: { fontSize: 16, color: "#64748B", marginBottom: 16 },
   emptyRefreshBtn: {
     backgroundColor: "#1E88E5",
     paddingVertical: 10,

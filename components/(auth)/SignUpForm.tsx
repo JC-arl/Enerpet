@@ -1,21 +1,21 @@
-import React, { useState, useRef } from "react";
+import { ThemedText } from "@/components/ThemedText";
+import { useAuth } from "@/lib/auth";
+import { LinearGradient } from "expo-linear-gradient";
+import { Link, router } from "expo-router";
+import React, { useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
   StyleSheet,
   TextInput,
   View,
-  Animated,
-  Pressable,
-  StatusBar,
-  SafeAreaView,
-  ScrollView,
 } from "react-native";
-import { Link, router } from "expo-router";
-import { useAuth } from "@/lib/auth";
-import { ThemedText } from "@/components/ThemedText";
-import { LinearGradient } from "expo-linear-gradient";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -26,7 +26,6 @@ type Props = {
 export default function SignUpForm({ role }: Props) {
   const { signUp } = useAuth();
 
-  // 역할별 색상 테마
   const isGuardian = role === "guardian";
   const primaryColor = isGuardian ? "#42A5F5" : "#66BB6A";
   const primaryHover = isGuardian ? "#1E88E5" : "#4CAF50";
@@ -36,7 +35,6 @@ export default function SignUpForm({ role }: Props) {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [pwCheck, setPwCheck] = useState("");
-  const [elderlyName, setElderlyName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const [focused, setFocused] = useState({
@@ -44,7 +42,6 @@ export default function SignUpForm({ role }: Props) {
     email: false,
     pw: false,
     pwCheck: false,
-    elderlyName: false,
   });
 
   const scaleSubmit = useRef(new Animated.Value(1)).current;
@@ -58,8 +55,7 @@ export default function SignUpForm({ role }: Props) {
     isEmailValid &&
     isPasswordValid &&
     isPasswordMatch &&
-    pwCheck !== "" &&
-    (role === "guardian" ? elderlyName.trim() !== "" : true);
+    pwCheck !== "";
 
   const mapFirebaseError = (code?: string) => {
     switch (code) {
@@ -80,10 +76,11 @@ export default function SignUpForm({ role }: Props) {
     if (submitting || !isFormValid) return;
     try {
       setSubmitting(true);
-      await signUp(name.trim(), email.trim(), pw, role, elderlyName.trim());
+      await signUp(name.trim(), email.trim(), pw, role); // ✅ elderlyName 제거됨
       router.replace({ pathname: "/sign-in", params: { role } });
     } catch (e: any) {
-      const msg = mapFirebaseError(e?.code) ?? e?.message ?? "다시 시도해주세요.";
+      const msg =
+        mapFirebaseError(e?.code) ?? e?.message ?? "다시 시도해주세요.";
       Alert.alert("회원가입 실패", msg);
     } finally {
       setSubmitting(false);
@@ -107,10 +104,14 @@ export default function SignUpForm({ role }: Props) {
   return (
     <View style={styles.wrap}>
       <StatusBar barStyle="dark-content" translucent={Platform.OS !== "web"} />
-      
+
       {/* 배경 그라디언트 */}
       <LinearGradient
-        colors={isGuardian ? ["#B3E5FC", "#E1F5FE", "#F5FAFE"] : ["#C8E6C9", "#E8F5E9", "#F1F8E9"]}
+        colors={
+          isGuardian
+            ? ["#B3E5FC", "#E1F5FE", "#F5FAFE"]
+            : ["#C8E6C9", "#E8F5E9", "#F1F8E9"]
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -121,13 +122,18 @@ export default function SignUpForm({ role }: Props) {
           behavior={Platform.select({ ios: "padding", android: undefined })}
           style={styles.flex}
         >
-          <ScrollView 
+          <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
             {/* 헤더 */}
             <View style={styles.header}>
-              <View style={[styles.iconBadge, { backgroundColor: isGuardian ? "#FFE0B2" : "#C8E6C9" }]}>
+              <View
+                style={[
+                  styles.iconBadge,
+                  { backgroundColor: isGuardian ? "#FFE0B2" : "#C8E6C9" },
+                ]}
+              >
                 <ThemedText style={styles.iconEmoji}>
                   {isGuardian ? "👨‍👩‍👧" : "👴"}
                 </ThemedText>
@@ -148,7 +154,7 @@ export default function SignUpForm({ role }: Props) {
                 <TextInput
                   style={[
                     styles.input,
-                    focused.name && { borderColor: primaryColor, borderWidth: 2 }
+                    focused.name && { borderColor: primaryColor, borderWidth: 2 },
                   ]}
                   value={name}
                   onChangeText={setName}
@@ -160,33 +166,13 @@ export default function SignUpForm({ role }: Props) {
                 />
               </View>
 
-              {/* 보호자일 경우: 피보호자 이름 */}
-              {role === "guardian" && (
-                <View style={styles.field}>
-                  <ThemedText style={styles.label}>피보호자 이름</ThemedText>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      focused.elderlyName && { borderColor: primaryColor, borderWidth: 2 }
-                    ]}
-                    value={elderlyName}
-                    onChangeText={setElderlyName}
-                    placeholder="예: 박영희"
-                    placeholderTextColor="#B0BEC5"
-                    onFocus={() => setFocused({ ...focused, elderlyName: true })}
-                    onBlur={() => setFocused({ ...focused, elderlyName: false })}
-                    editable={!submitting}
-                  />
-                </View>
-              )}
-
               {/* 이메일 */}
               <View style={styles.field}>
                 <ThemedText style={styles.label}>이메일</ThemedText>
                 <TextInput
                   style={[
                     styles.input,
-                    focused.email && { borderColor: primaryColor, borderWidth: 2 }
+                    focused.email && { borderColor: primaryColor, borderWidth: 2 },
                   ]}
                   value={email}
                   onChangeText={setEmail}
@@ -211,7 +197,7 @@ export default function SignUpForm({ role }: Props) {
                 <TextInput
                   style={[
                     styles.input,
-                    focused.pw && { borderColor: primaryColor, borderWidth: 2 }
+                    focused.pw && { borderColor: primaryColor, borderWidth: 2 },
                   ]}
                   value={pw}
                   onChangeText={setPw}
@@ -235,7 +221,7 @@ export default function SignUpForm({ role }: Props) {
                 <TextInput
                   style={[
                     styles.input,
-                    focused.pwCheck && { borderColor: primaryColor, borderWidth: 2 }
+                    focused.pwCheck && { borderColor: primaryColor, borderWidth: 2 },
                   ]}
                   value={pwCheck}
                   onChangeText={setPwCheck}
@@ -284,9 +270,13 @@ export default function SignUpForm({ role }: Props) {
 
               {/* 로그인 링크 */}
               <View style={styles.row}>
-                <ThemedText style={styles.linkText}>이미 계정이 있나요? </ThemedText>
+                <ThemedText style={styles.linkText}>
+                  이미 계정이 있나요?{" "}
+                </ThemedText>
                 <Link href={{ pathname: "/sign-in", params: { role } }}>
-                  <ThemedText style={[styles.linkButton, { color: primaryColor }]}>
+                  <ThemedText
+                    style={[styles.linkButton, { color: primaryColor }]}
+                  >
                     로그인
                   </ThemedText>
                 </Link>
@@ -300,27 +290,16 @@ export default function SignUpForm({ role }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    backgroundColor: "#F5FAFE",
-  },
-  safeArea: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
+  wrap: { flex: 1, backgroundColor: "#F5FAFE" },
+  safeArea: { flex: 1 },
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: 40,
   },
-  header: {
-    alignItems: "center",
-    marginTop: 40,
-    marginBottom: 40,
-  },
+  header: { alignItems: "center", marginTop: 40, marginBottom: 40 },
   iconBadge: {
     width: 80,
     height: 80,
@@ -329,9 +308,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 20,
   },
-  iconEmoji: {
-    fontSize: 40,
-  },
+  iconEmoji: { fontSize: 40 },
   title: {
     fontSize: 28,
     fontWeight: "800",
@@ -345,20 +322,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  formContainer: {
-    maxWidth: 400,
-    width: "100%",
-    alignSelf: "center",
-  },
-  field: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#37474F",
-    marginBottom: 8,
-  },
+  formContainer: { maxWidth: 400, width: "100%", alignSelf: "center" },
+  field: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: "600", color: "#37474F", marginBottom: 8 },
   input: {
     borderWidth: 1.5,
     borderColor: "#CFD8DC",
@@ -379,33 +345,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  buttonGradient: {
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 17,
-  },
+  buttonGradient: { paddingVertical: 16, alignItems: "center" },
+  buttonText: { color: "#FFFFFF", fontWeight: "700", fontSize: 17 },
   row: {
     marginTop: 20,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
   },
-  linkText: {
-    fontSize: 14,
-    color: "#546E7A",
-  },
-  linkButton: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  errorText: {
-    marginTop: 6,
-    color: "#D32F2F",
-    fontSize: 13,
-    fontWeight: "500",
-  },
+  linkText: { fontSize: 14, color: "#546E7A" },
+  linkButton: { fontSize: 14, fontWeight: "600" },
+  errorText: { marginTop: 6, color: "#D32F2F", fontSize: 13, fontWeight: "500" },
 });
