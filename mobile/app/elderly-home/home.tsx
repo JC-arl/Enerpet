@@ -102,7 +102,7 @@ export default function HomeScreen() {
   }, [feedModalVisible]);
 
   const characterTopPx = useMemo(() => {
-    const ratio = level === 1 ? 0.35 : level === 2 ? 0.32 : 0.28;
+    const ratio = level === 1 ? 0.38 : level === 2 ? 0.36 : 0.33;
     return Math.round(H * ratio);
   }, [H, level]);
 
@@ -321,7 +321,7 @@ export default function HomeScreen() {
                 },
               ]}
             >
-              <ThemedText style={[styles.petEmoji, { fontSize: characterSize * 0.6 }]}>
+              <ThemedText style={[styles.petEmoji, { fontSize: characterSize * 0.5, lineHeight: characterSize * 0.6 }]}>
                 {getPetEmoji()}
               </ThemedText>
             </Animated.View>
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 24,
-    paddingTop: 16,
+    paddingTop: 48,
   },
   leftGroup: {
     gap: 4,
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
-    marginTop: 8,
+    marginTop: 24,
   },
   levelText: {
     fontSize: 14,
@@ -537,9 +537,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
+    overflow: "hidden",
   },
   petEmoji: {
     textAlign: "center",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
 
   expBarBox: {

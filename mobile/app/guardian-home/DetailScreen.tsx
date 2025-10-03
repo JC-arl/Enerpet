@@ -1,10 +1,34 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, Pressable } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
-import { useAuth } from "@/lib/auth";
 import LogoutConfirmModal from "@/components/LogoutConfirmModal";
 import LogoutSuccessModal from "@/components/LogoutSuccessModal";
+import { useAuth } from "@/lib/auth";
+import { db } from "@/lib/firebase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  NativeModules,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  limit,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "firebase/firestore";
+
+const { HealthModule } = NativeModules;
 
 type HealthRecord = {
   id: number;
@@ -12,32 +36,122 @@ type HealthRecord = {
   heart_rate: number;
   steps: number;
   calories: number;
+  distance: number;
 };
 
 export default function DetailScreen() {
-  const [records, setRecords] = useState<HealthRecord[]>([]);
-  const { signOut } = useAuth();
+  const { user, role, elderlyId, signOut } = useAuth();
 
-  // ✅ 로그아웃 상태값
+  const [records, setRecords] = useState<HealthRecord[]>([]);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [logoutSuccessVisible, setLogoutSuccessVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // ✅ Health Connect → Firestore 저장
+  const fetchAndSaveHealthData = useCallback(async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+      else setIsRefreshing(true);
+
+      if (!HealthModule) throw new Error("Health Connect 모듈을 찾을 수 없습니다.");
+
+      const today = new Date().toISOString().split("T")[0];
+      const data = await HealthModule.getTodayHealthData();
+
+      const targetUid = role === "guardian" ? elderlyId : user?.uid;
+      if (!targetUid) throw new Error("uid를 확인할 수 없습니다.");
+
+      const q = query(
+        collection(db, "healthData"),
+        where("uid", "==", targetUid),
+        where("date", "==", today),
+        limit(1)
+      );
+      const existing = await getDocs(q);
+
+      const payload = {
+        heartRate: data.heartRate ?? 0,
+        steps: data.steps ?? 0,
+        calories: data.calories ?? 0,
+        distance: data.distance ?? 0,
+        date: today,
+        timestamp: serverTimestamp(),
+      };
+
+      if (existing.empty) {
+        await addDoc(collection(db, "healthData"), {
+          uid: targetUid,
+          ...payload,
+        });
+        console.log("헬스 데이터 Firestore에 저장 완료");
+      } else {
+        const docId = existing.docs[0].id;
+        await updateDoc(doc(db, "healthData", docId), payload);
+        console.log("헬스 데이터 Firestore에 업데이트 완료");
+      }
+    } catch (err) {
+      console.error("건강 데이터 처리 오류:", err);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [role, elderlyId, user]);
 
   useEffect(() => {
-    fetch("http://10.0.2.2:4000/api/elderly/uuid-1234/health-data?date=2025-09-27")
-      .then((res) => res.json())
-      .then((data) => setRecords(data.records))
-      .catch(() => {
-        // 더미 데이터
-        setRecords([
-          { id: 1, timestamp: "2025-09-27 08:00", heart_rate: 85, steps: 1200, calories: 100 },
-          { id: 2, timestamp: "2025-09-27 12:00", heart_rate: 90, steps: 3000, calories: 200 },
-          { id: 3, timestamp: "2025-09-27 18:00", heart_rate: 95, steps: 5000, calories: 350 },
-        ]);
-      });
-  }, []);
+    fetchAndSaveHealthData(true);
+  }, [fetchAndSaveHealthData]);
 
-  // ✅ 실제 로그아웃 처리
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAndSaveHealthData(false);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [fetchAndSaveHealthData]);
+
+  // ✅ Firestore 실시간 구독
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const targetUid = role === "guardian" ? elderlyId : user?.uid;
+    if (!targetUid) return;
+
+    const q = query(
+      collection(db, "healthData"),
+      where("uid", "==", targetUid),
+      where("date", "==", today),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const docData = snapshot.docs[0].data();
+
+        const now = new Date();
+        const timeString = `${today} ${now
+          .getHours()
+          .toString()
+          .padStart(2, "0")}:${now
+          .getMinutes()
+          .toString()
+          .padStart(2, "0")}`;
+
+        const newRecord: HealthRecord = {
+          id: 1,
+          timestamp: timeString,
+          heart_rate: docData.heartRate ?? 0,
+          steps: docData.steps ?? 0,
+          calories: docData.calories ?? 0,
+          distance: docData.distance ?? 0,
+        };
+
+        setRecords([newRecord]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [role, elderlyId, user]);
+
   const onSignOut = async () => {
     if (loggingOut) return;
     try {
@@ -52,59 +166,155 @@ export default function DetailScreen() {
     }
   };
 
+  const handleRefresh = () => {
+    fetchAndSaveHealthData(false);
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#1E88E5" />
+        <Text style={{ marginTop: 8 }}>건강 데이터를 불러오는 중...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* 상단 로그아웃 버튼 */}
-      <View style={styles.topRow}>
-        <Pressable
-          onPress={() => setLogoutModalVisible(true)}
-          disabled={loggingOut}
-          style={({ pressed }) => [
-            styles.logoutBtn,
-            pressed && styles.logoutBtnPressed,
-            loggingOut && { opacity: 0.6 },
-          ]}
-        >
-          <Text style={styles.logoutText}>
-            {loggingOut ? "로그아웃 중…" : "로그아웃"}
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>상세 기록</Text>
+          <Text style={styles.headerDate}>
+            {new Date().toLocaleDateString("ko-KR")}
           </Text>
-        </Pressable>
+        </View>
+        <View style={styles.headerButtons}>
+          <Pressable
+            onPress={handleRefresh}
+            disabled={isRefreshing}
+            style={({ pressed }) => [
+              styles.refreshBtn,
+              pressed && styles.refreshBtnPressed,
+              isRefreshing && { opacity: 0.6 },
+            ]}
+          >
+            <Text style={styles.refreshText}>
+              {isRefreshing ? "⏳" : "🔄"}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setLogoutModalVisible(true)}
+            disabled={loggingOut}
+            style={({ pressed }) => [
+              styles.logoutBtn,
+              pressed && styles.logoutBtnPressed,
+              loggingOut && { opacity: 0.6 },
+            ]}
+          >
+            <Text style={styles.logoutText}>
+              {loggingOut ? "로그아웃 중…" : "로그아웃"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
-      {/* 건강 데이터 리스트 */}
+      {/* 타임라인 */}
       <FlatList
         data={records}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.time}>🕒 {item.timestamp}</Text>
-            <Text>❤️ 심박수: {item.heart_rate}</Text>
-            <Text>👣 걸음 수: {item.steps}</Text>
-            <Text>🔥 칼로리: {item.calories}</Text>
+        contentContainerStyle={styles.listContainer}
+        renderItem={({ item, index }) => (
+          <View style={styles.timelineItem}>
+            <View style={styles.timeContainer}>
+              <Text style={styles.timeText}>
+                {item.timestamp.split(" ")[1]}
+              </Text>
+            </View>
+            <View style={styles.timelineTrack}>
+              <View style={styles.timelineDot} />
+              {index !== records.length - 1 && (
+                <View style={styles.timelineLine} />
+              )}
+            </View>
+            <View style={styles.dataCard}>
+              {/* 1행: 심박수, 걸음수 */}
+              <View style={styles.dataRow}>
+                <View style={styles.dataItem}>
+                  <Text style={styles.dataIcon}>❤️</Text>
+                  <View>
+                    <Text style={styles.dataValue}>
+                      {item.heart_rate > 0
+                        ? Number(item.heart_rate ?? 0).toFixed(0)
+                        : "-"}
+                    </Text>
+                    <Text style={styles.dataLabel}>심박수</Text>
+                  </View>
+                </View>
+                <View style={styles.dataItem}>
+                  <Text style={styles.dataIcon}>👣</Text>
+                  <View>
+                    <Text style={styles.dataValue}>
+                      {Number(item.steps ?? 0).toLocaleString()}
+                    </Text>
+                    <Text style={styles.dataLabel}>걸음 수</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* 2행: 총 칼로리, 이동 거리 */}
+              <View style={[styles.dataRow, { marginTop: 12 }]}>
+                <View style={styles.dataItem}>
+                  <Text style={styles.dataIcon}>🔥</Text>
+                  <View>
+                    <Text style={styles.dataValue}>
+                      {Number(item.calories ?? 0).toFixed(1)}
+                    </Text>
+                    <Text style={styles.dataLabel}>칼로리</Text>
+                  </View>
+                </View>
+                <View style={styles.dataItem}>
+                  <Text style={styles.dataIcon}>📏</Text>
+                  <View>
+                    <Text style={styles.dataValue}>
+                      {Number(item.distance ?? 0).toFixed(1)} m
+                    </Text>
+                    <Text style={styles.dataLabel}>이동 거리</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
           </View>
         )}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>오늘의 건강 데이터가 없습니다.</Text>
+            <Pressable style={styles.emptyRefreshBtn} onPress={handleRefresh}>
+              <Text style={styles.emptyRefreshText}>데이터 불러오기</Text>
+            </Pressable>
+          </View>
+        }
       />
 
-      {/* 1. 로그아웃 확인 모달 */}
+      {/* 모달 */}
       <LogoutConfirmModal
         visible={logoutModalVisible}
         loading={loggingOut}
-        role="guardian" // ✅ 보호자용
+        role="guardian"
         onCancel={() => setLogoutModalVisible(false)}
         onConfirm={() => {
           setLogoutModalVisible(false);
-          setLogoutSuccessVisible(true); // ✅ 완료 모달 먼저 띄우기
-          onSignOut(); // ✅ 실제 로그아웃 비동기 실행
+          setLogoutSuccessVisible(true);
+          onSignOut();
         }}
       />
 
-      {/* 2. 로그아웃 완료 모달 */}
       <LogoutSuccessModal
         visible={logoutSuccessVisible}
-        role="guardian" // ✅ 보호자용
+        role="guardian"
         onClose={() => {
           setLogoutSuccessVisible(false);
-          router.replace("/sign-in?role=guardian"); // ✅ 보호자 로그인 페이지로 이동
+          router.replace("/sign-in?role=guardian");
         }}
       />
     </View>
@@ -112,38 +322,93 @@ export default function DetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#f5f5f5" },
-  topRow: {
+  container: { flex: 1, backgroundColor: "#F5F7FA" },
+  header: {
+    backgroundColor: "#1E88E5",
+    paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     flexDirection: "row",
-    justifyContent: "flex-end",
-    marginBottom: 12,
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-
-  // ✅ 보호자용: 초록 계열 색상 적용
-  logoutBtn: {
-    borderWidth: 1,
-    borderColor: "#388E3C",  // 조금 더 진한 초록
-    backgroundColor: "#4CAF50", // 기본 초록색 배경
-    paddingVertical: 8,
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  headerDate: { fontSize: 15, color: "#E3F2FD", fontWeight: "500" },
+  headerButtons: { flexDirection: "row", gap: 8 },
+  refreshBtn: {
+    backgroundColor: "#1976D2",
+    paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1565C0",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  logoutBtnPressed: {
-    backgroundColor: "#388E3C", // 눌렀을 때 진한 초록
-    borderColor: "#2E7D32",
+  refreshBtnPressed: { backgroundColor: "#1565C0" },
+  refreshText: { fontSize: 18 },
+  logoutBtn: {
+    backgroundColor: "#1976D2",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1565C0",
   },
-  logoutText: {
-    color: "#FFF",
+  logoutBtnPressed: { backgroundColor: "#1565C0" },
+  logoutText: { color: "#FFFFFF", fontWeight: "600", fontSize: 14 },
+  listContainer: { padding: 20 },
+  timelineItem: { flexDirection: "row", marginBottom: 24 },
+  timeContainer: { width: 60, paddingTop: 4 },
+  timeText: { fontSize: 14, fontWeight: "600", color: "#64748B" },
+  timelineTrack: { width: 40, alignItems: "center" },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#1E88E5",
+    borderWidth: 3,
+    borderColor: "#E3F2FD",
+  },
+  timelineLine: { width: 2, flex: 1, backgroundColor: "#E3F2FD", marginTop: 4 },
+  dataCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  dataRow: { flexDirection: "row", justifyContent: "space-between" },
+  dataItem: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dataIcon: { fontSize: 24 },
+  dataValue: { fontSize: 18, fontWeight: "700", color: "#1E293B" },
+  dataLabel: { fontSize: 12, color: "#64748B", marginTop: 2 },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyText: { fontSize: 16, color: "#64748B", marginBottom: 16 },
+  emptyRefreshBtn: {
+    backgroundColor: "#1E88E5",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  emptyRefreshText: {
+    color: "#FFFFFF",
     fontWeight: "600",
     fontSize: 14,
   },
-
-  card: {
-    backgroundColor: "#fff",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-    elevation: 2,
-  },
-  time: { fontWeight: "bold", marginBottom: 4 },
 });

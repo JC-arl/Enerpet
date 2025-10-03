@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/lib/auth";
 import { ThemedText } from "@/components/ThemedText";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export const options = { headerShown: false };
@@ -122,7 +123,7 @@ export default function SignIn() {
   return (
     <View style={styles.wrap}>
       <StatusBar barStyle="dark-content" translucent={Platform.OS !== "web"} />
-      
+
       {/* 배경 그라디언트 */}
       <LinearGradient
         colors={isGuardian ? ["#B3E5FC", "#E1F5FE", "#F5FAFE"] : ["#C8E6C9", "#E8F5E9", "#F1F8E9"]}
@@ -137,6 +138,14 @@ export default function SignIn() {
           style={styles.flex}
         >
           <View style={styles.container}>
+            {/* 🔙 뒤로가기 버튼 */}
+            <Pressable
+              style={styles.backButton}
+              onPress={() => router.replace("/role-select")} // ← 무조건 role-select로 이동
+            >
+              <Ionicons name="arrow-back" size={24} color="#37474F" />
+            </Pressable>
+
             {/* 헤더 */}
             <View style={styles.header}>
               <View style={[styles.iconBadge, { backgroundColor: isGuardian ? "#FFE0B2" : "#C8E6C9" }]}>
@@ -351,6 +360,8 @@ const styles = StyleSheet.create({
   },
   iconEmoji: {
     fontSize: 40,
+    lineHeight: 48, // fontSize보다 살짝 크게
+    textAlign: "center",
   },
   title: {
     fontSize: 28,
@@ -458,6 +469,8 @@ const styles = StyleSheet.create({
   },
   modalIcon: {
     fontSize: 32,
+    lineHeight: 38,   // fontSize보다 살짝 크게
+    textAlign: "center",
   },
   modalTitle: {
     fontSize: 20,
@@ -483,5 +496,14 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 16,
+  },
+  backButton: {
+    position: "absolute",
+    top: 60,
+    left: 30,
+    zIndex: 10,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.7)", // 반투명 배경 (옵션)
   },
 });

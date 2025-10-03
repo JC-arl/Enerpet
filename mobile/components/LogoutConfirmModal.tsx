@@ -7,13 +7,14 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface Props {
   visible: boolean;
   loading?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
-  role?: "elderly" | "guardian"; // ✅ 역할 구분
+  role?: "elderly" | "guardian";
 }
 
 export default function LogoutConfirmModal({
@@ -21,12 +22,16 @@ export default function LogoutConfirmModal({
   loading,
   onCancel,
   onConfirm,
-  role = "elderly", // 기본값: 노인용
+  role = "elderly",
 }: Props) {
-  // ✅ 역할별 색상 정의
+  const insets = useSafeAreaInsets();
+  
+  // 탭 바 높이 (기본 49 + 하단 safe area)
+  const TAB_BAR_HEIGHT = 49 + insets.bottom;
+
   const colors = {
-    elderly: "#2196F3", // 파랑
-    guardian: "#4CAF50", // 초록
+    elderly: "#2196F3",
+    guardian: "#4CAF50",
   };
 
   return (
@@ -36,12 +41,11 @@ export default function LogoutConfirmModal({
       animationType="slide"
       statusBarTranslucent
     >
-      {/* 배경 눌렀을 때 닫기 */}
       <TouchableWithoutFeedback onPress={onCancel}>
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { bottom: TAB_BAR_HEIGHT }]}>
         <Text style={styles.title}>로그아웃 하시겠습니까?</Text>
         <Text style={styles.message}>확인을 누르면 로그아웃됩니다.</Text>
 
@@ -84,7 +88,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 30,
     position: "absolute",
-    bottom: 0,
     width: "100%",
   },
   title: { fontSize: 18, fontWeight: "700", textAlign: "center" },

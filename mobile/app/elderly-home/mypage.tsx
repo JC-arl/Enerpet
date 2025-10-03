@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 48,
     paddingBottom: 40,
   },
   center: {
