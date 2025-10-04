@@ -38,7 +38,7 @@ type ElderlyUser = {
 };
 
 export default function GuardianMyPage() {
-  const { user } = useAuth();
+  const { user, selectedElderlyId, setSelectedElderlyId } = useAuth();
   const [elderlyList, setElderlyList] = useState<ElderlyUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,10 +46,8 @@ export default function GuardianMyPage() {
   const [searchResult, setSearchResult] = useState<any | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // ✅ 오늘 날짜
   const today = new Date().toISOString().split("T")[0];
 
-  // ✅ 연결된 elderly 구독 + healthData 같이 가져오기
   useEffect(() => {
     if (!user) return;
     const ref = doc(db, "users", user.uid);
@@ -63,7 +61,6 @@ export default function GuardianMyPage() {
           if (esnap.exists()) {
             const elderlyData = esnap.data();
 
-            // 🔥 오늘 healthData 가져오기
             const q = query(
               collection(db, "healthData"),
               where("uid", "==", eid),
@@ -73,7 +70,13 @@ export default function GuardianMyPage() {
             const hsnap = await getDocs(q);
             let health = null;
             if (!hsnap.empty) {
-              health = hsnap.docs[0].data() as ElderlyUser["health"];
+              const rawData = hsnap.docs[0].data();
+              health = {
+                heartRate: Math.round(rawData.heartRate ?? 0),
+                steps: Math.round(rawData.steps ?? 0),
+                calories: Math.round(rawData.calories ?? 0),
+                distance: Math.round(rawData.distance ?? 0),
+              };
             }
 
             results.push({
@@ -121,7 +124,6 @@ export default function GuardianMyPage() {
     }
   };
 
-  // ✅ elderly 연결
   const handleAddElderly = async (elderlyId: string) => {
     try {
       await updateDoc(doc(db, "users", user.uid), {
@@ -131,13 +133,16 @@ export default function GuardianMyPage() {
       Alert.alert("성공", "피보호자가 연결되었습니다.");
       setSearchResult(null);
       setInputEmail("");
+      
+      if (elderlyList.length === 0) {
+        setSelectedElderlyId(elderlyId);
+      }
     } catch (err) {
       console.error("피보호자 등록 오류:", err);
       Alert.alert("오류", "등록 중 문제가 발생했습니다.");
     }
   };
 
-  // ✅ 이미 연결된 사용자인지 확인
   const isAlreadyConnected = (elderlyId: string) => {
     return elderlyList.some((e) => e.id === elderlyId);
   };
@@ -160,7 +165,6 @@ export default function GuardianMyPage() {
       <View style={styles.container}>
         <Text style={styles.title}>보호자 마이페이지</Text>
 
-        {/* 검색 섹션 */}
         <View style={styles.searchSection}>
           <Text style={styles.sectionTitle}>피보호자 검색</Text>
           <View style={styles.inputRow}>
@@ -182,7 +186,6 @@ export default function GuardianMyPage() {
             </Pressable>
           </View>
 
-          {/* 검색 결과 */}
           {searchError && (
             <View style={styles.searchResultCard}>
               <Text style={{ color: "#D32F2F", fontWeight: "600" }}>
@@ -224,7 +227,6 @@ export default function GuardianMyPage() {
           )}
         </View>
 
-        {/* 연결된 피보호자 목록 */}
         <View style={styles.listSection}>
           <Text style={styles.sectionTitle}>
             연결된 피보호자 ({elderlyList.length})
@@ -234,7 +236,13 @@ export default function GuardianMyPage() {
             data={elderlyList}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <View style={styles.elderlyCard}>
+              <Pressable
+                style={[
+                  styles.elderlyCard,
+                  item.id === selectedElderlyId && styles.selectedCard,
+                ]}
+                onPress={() => setSelectedElderlyId(item.id)}
+              >
                 <View style={styles.cardContent}>
                   <View style={styles.avatarPlaceholder}>
                     <Text style={styles.avatarText}>
@@ -247,28 +255,54 @@ export default function GuardianMyPage() {
                     </Text>
                     <Text style={styles.cardEmail}>{item.email}</Text>
 
-                    {/* 🔥 오늘 건강 데이터 표시 */}
                     {item.health ? (
                       <View style={styles.healthRow}>
-                        <Text style={styles.healthText}>❤️ {item.health.heartRate ?? "-"} bpm</Text>
-                        <Text style={styles.healthText}>👣 {item.health.steps ?? 0} 걸음</Text>
-                        <Text style={styles.healthText}>🔥 {item.health.calories ?? 0} kcal</Text>
-                        <Text style={styles.healthText}>📏 {item.health.distance ?? 0} m</Text>
+                        <Text style={styles.healthText}>
+                          ❤️ {item.health.heartRate} bpm
+                        </Text>
+                        <Text style={styles.healthText}>
+                          👣 {item.health.steps} 걸음
+                        </Text>
+                        <Text style={styles.healthText}>
+                          🔥 {item.health.calories} kcal
+                        </Text>
+                        <Text style={styles.healthText}>
+                          📏 {item.health.distance} m
+                        </Text>
                       </View>
                     ) : (
                       <Text style={styles.noHealthText}>오늘 건강 데이터 없음</Text>
                     )}
                   </View>
                 </View>
-                <View style={styles.statusBadge}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.statusText}>연결됨</Text>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    item.id === selectedElderlyId && styles.activeStatusBadge,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.statusDot,
+                      item.id === selectedElderlyId && styles.activeStatusDot,
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.statusText,
+                      item.id === selectedElderlyId && styles.activeStatusText,
+                    ]}
+                  >
+                    {item.id === selectedElderlyId ? "모니터링 중" : "연결됨"}
+                  </Text>
                 </View>
-              </View>
+              </Pressable>
             )}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>아직 연결된 피보호자가 없습니다</Text>
+                <Text style={styles.emptyText}>
+                  아직 연결된 피보호자가 없습니다
+                </Text>
                 <Text style={styles.emptySubText}>
                   위에서 이메일로 검색하여 연결하세요
                 </Text>
@@ -299,7 +333,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
-  // 검색 섹션
   searchSection: { marginBottom: 24 },
   sectionTitle: {
     fontSize: 18,
@@ -328,7 +361,6 @@ const styles = StyleSheet.create({
   },
   searchBtnText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
 
-  // 검색 결과 카드
   searchResultCard: {
     backgroundColor: "#FFF",
     padding: 20,
@@ -349,7 +381,12 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontSize: 20, fontWeight: "700", color: "#FFF" },
   resultInfo: { flex: 1 },
-  resultName: { fontSize: 18, fontWeight: "700", color: "#1565C0", marginBottom: 4 },
+  resultName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1565C0",
+    marginBottom: 4,
+  },
   resultEmail: { fontSize: 14, color: "#546E7A" },
   connectedBadge: {
     backgroundColor: "#E8F5E9",
@@ -367,7 +404,6 @@ const styles = StyleSheet.create({
   },
   connectBtnText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
 
-  // 리스트 섹션
   listSection: { flex: 1 },
   elderlyCard: {
     backgroundColor: "#FFF",
@@ -377,9 +413,23 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: "#42A5F5",
   },
-  cardContent: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  selectedCard: {
+    borderLeftColor: "#1E88E5",
+    borderLeftWidth: 6,
+    backgroundColor: "#E3F2FD",
+  },
+  cardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   cardInfo: { flex: 1 },
-  cardName: { fontSize: 17, fontWeight: "700", color: "#263238", marginBottom: 4 },
+  cardName: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#263238",
+    marginBottom: 4,
+  },
   cardEmail: { fontSize: 14, color: "#546E7A" },
   healthRow: { marginTop: 8 },
   healthText: { fontSize: 13, color: "#37474F", marginBottom: 2 },
@@ -393,6 +443,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignSelf: "flex-start",
   },
+  activeStatusBadge: {
+    backgroundColor: "#1E88E5",
+  },
   statusDot: {
     width: 8,
     height: 8,
@@ -400,10 +453,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#4CAF50",
     marginRight: 6,
   },
-  statusText: { fontSize: 13, fontWeight: "600", color: "#1565C0" },
+  activeStatusDot: {
+    backgroundColor: "#FFF",
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1565C0",
+  },
+  activeStatusText: {
+    color: "#FFF",
+  },
 
-  // Empty state
-  emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 60 },
-  emptyText: { fontSize: 16, color: "#78909C", fontWeight: "600", marginBottom: 8 },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#78909C",
+    fontWeight: "600",
+    marginBottom: 8,
+  },
   emptySubText: { fontSize: 14, color: "#90A4AE" },
 });

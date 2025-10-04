@@ -73,15 +73,19 @@ export default function DetailScreen() {
     current.setDate(current.getDate() + days);
     const newDate = current.toISOString().split("T")[0];
     const today = new Date().toISOString().split("T")[0];
-    
+
     if (newDate <= today) {
       setSelectedDate(newDate);
     }
   };
 
   const fetchAndSaveHealthData = useCallback(async (showLoading = true) => {
+    console.log("role:", role);
+    console.log("elderlyId:", elderlyId);
+    console.log("user.uid:", user?.uid);
+
     if (!isToday) return;
-    
+
     try {
       if (showLoading) setLoading(true);
       else setIsRefreshing(true);
@@ -140,7 +144,7 @@ export default function DetailScreen() {
 
   useEffect(() => {
     if (!isToday) return;
-    
+
     const interval = setInterval(() => {
       fetchAndSaveHealthData(false);
     }, 60000);
@@ -174,9 +178,9 @@ export default function DetailScreen() {
           .getHours()
           .toString()
           .padStart(2, "0")}:${now
-          .getMinutes()
-          .toString()
-          .padStart(2, "0")}`;
+            .getMinutes()
+            .toString()
+            .padStart(2, "0")}`;
 
         const newRecord: HealthRecord = {
           id: 1,
@@ -271,7 +275,7 @@ export default function DetailScreen() {
             <Pressable onPress={() => changeDate(-1)} style={styles.dateArrow}>
               <Text style={styles.dateArrowText}>←</Text>
             </Pressable>
-            
+
             <Text style={styles.dateText}>
               {new Date(selectedDate).toLocaleDateString("ko-KR", {
                 year: "numeric",
@@ -280,9 +284,9 @@ export default function DetailScreen() {
               })}
               {isToday && " (오늘)"}
             </Text>
-            
-            <Pressable 
-              onPress={() => changeDate(1)} 
+
+            <Pressable
+              onPress={() => changeDate(1)}
               style={styles.dateArrow}
               disabled={isToday}
             >
@@ -300,7 +304,7 @@ export default function DetailScreen() {
               <Text style={styles.mainTitle}>
                 {isToday ? "현재 건강 상태" : "당일 건강 상태"}
               </Text>
-              
+
               <View style={styles.mainGrid}>
                 <View style={styles.mainItem}>
                   <View style={styles.mainItemHeader}>
@@ -351,8 +355,8 @@ export default function DetailScreen() {
             <View style={styles.emptyMainCard}>
               <Text style={styles.emptyMainIcon}>📊</Text>
               <Text style={styles.emptyMainText}>
-                {isToday 
-                  ? "오늘의 건강 데이터가 없습니다." 
+                {isToday
+                  ? "오늘의 건강 데이터가 없습니다."
                   : "해당 날짜의 건강 데이터가 없습니다."}
               </Text>
               {isToday && (
@@ -366,7 +370,7 @@ export default function DetailScreen() {
 
         {/* 시간별 기록 섹션 */}
         <View style={styles.timelineSection}>
-          <Pressable 
+          <Pressable
             style={styles.timelineHeader}
             onPress={() => setDrawerExpanded(!drawerExpanded)}
           >
@@ -389,7 +393,7 @@ export default function DetailScreen() {
                         {item.timestamp.split(" ")[1]}
                       </Text>
                     </View>
-                    
+
                     <View style={styles.recordGrid}>
                       <View style={styles.recordItem}>
                         <Text style={styles.recordIcon}>❤️</Text>
@@ -535,7 +539,7 @@ const styles = StyleSheet.create({
     minWidth: 200,
     textAlign: "center",
   },
-  
+
   // 메인 컨텐츠
   mainContent: {
     padding: 20,
@@ -593,7 +597,7 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontWeight: "500",
   },
-  
+
   emptyMainCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
