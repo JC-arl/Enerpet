@@ -73,7 +73,6 @@ export default function MyPage() {
         { name: name || "" },
         { merge: true }
       );
-      // ✅ Alert 대신 모달 열기
       setSaveSuccessVisible(true);
     } catch (e: any) {
       Alert.alert("오류", e?.message ?? "저장 중 문제가 발생했습니다.");
@@ -179,12 +178,6 @@ export default function MyPage() {
               >
                 <Text style={styles.logoutBtnText}>로그아웃</Text>
               </Pressable>
-
-              {/* UID (선택사항 - 개발자용) */}
-              <View style={styles.debugInfo}>
-                <Text style={styles.debugLabel}>UID (개발자 정보)</Text>
-                <Text style={styles.debugValue}>{user?.uid ?? "-"}</Text>
-              </View>
             </View>
           )}
         </ScrollView>
@@ -232,8 +225,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 40,
+    paddingTop: 56,
+    paddingBottom: 48,
   },
   center: {
     flex: 1,
@@ -243,16 +236,16 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    marginBottom: 32,
+    marginBottom: 40,
   },
   pageTitle: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: "800",
     color: "#2E7D32",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   pageSubtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: "#66BB6A",
     fontWeight: "500",
   },
@@ -265,13 +258,13 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    gap: 16,
+    gap: 20,
   },
 
   infoCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 20,
+    padding: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -279,7 +272,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   infoRow: {
-    gap: 8,
+    gap: 10,
   },
   infoLabel: {
     fontSize: 13,
@@ -289,7 +282,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 17,
     color: "#2E7D32",
     fontWeight: "600",
   },
@@ -297,7 +290,7 @@ const styles = StyleSheet.create({
   editCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 20,
+    padding: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -305,17 +298,17 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
     color: "#2E7D32",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   input: {
     borderWidth: 1.5,
     borderColor: "#C8E6C9",
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 16,
     backgroundColor: "#F9F9F9",
     fontSize: 16,
     color: "#263238",
@@ -326,9 +319,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   helpText: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#81C784",
-    marginTop: 8,
+    marginTop: 10,
     fontWeight: "500",
   },
 
@@ -340,13 +333,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
-    marginTop: 8,
+    marginTop: 12,
   },
   saveBtnPressed: {
     opacity: 0.9,
   },
   saveBtnGradient: {
-    paddingVertical: 16,
+    paddingVertical: 18,
     alignItems: "center",
   },
   saveBtnText: {
@@ -359,9 +352,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
     borderColor: "#FF7043",
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderRadius: 12,
     alignItems: "center",
+    marginTop: 4,
   },
   logoutBtnPressed: {
     backgroundColor: "#FFF3E0",
@@ -370,25 +364,5 @@ const styles = StyleSheet.create({
     color: "#FF7043",
     fontWeight: "700",
     fontSize: 17,
-  },
-
-  debugInfo: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-  },
-  debugLabel: {
-    fontSize: 11,
-    color: "#999",
-    marginBottom: 4,
-    textTransform: "uppercase",
-  },
-  debugValue: {
-    fontSize: 12,
-    color: "#666",
-    fontFamily: "monospace",
   },
 });

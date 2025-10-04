@@ -25,7 +25,7 @@ export default function LogoutConfirmModal({
   role = "elderly",
 }: Props) {
   const insets = useSafeAreaInsets();
-  
+
   // 탭 바 높이 (기본 49 + 하단 safe area)
   const TAB_BAR_HEIGHT = 49 + insets.bottom;
 
@@ -45,7 +45,7 @@ export default function LogoutConfirmModal({
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
-      <View style={[styles.sheet, { bottom: TAB_BAR_HEIGHT }]}>
+      <View style={[styles.sheet, { bottom: TAB_BAR_HEIGHT / 2 }]}>
         <Text style={styles.title}>로그아웃 하시겠습니까?</Text>
         <Text style={styles.message}>확인을 누르면 로그아웃됩니다.</Text>
 
