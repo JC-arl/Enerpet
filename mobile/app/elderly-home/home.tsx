@@ -8,6 +8,7 @@ import {
   StatusBar,
   SafeAreaView,
   Platform,
+  NativeModules,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -18,20 +19,23 @@ import LogoutSuccessModal from "@/components/LogoutSuccessModal";
 
 import { useAuth } from "@/lib/auth";
 import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, limit, getDocs, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useGame } from "@/lib/GameContext";
+
+const { HealthModule } = NativeModules;
 
 export default function HomeScreen() {
   const { level, exp, maxExp, setLevel, setExp, setMaxExp } = useGame();
   const { width: W, height: H } = useWindowDimensions();
 
-  const { user, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
   const [displayName, setDisplayName] = useState<string>("");
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [logoutSuccessVisible, setLogoutSuccessVisible] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [feedModalVisible, setFeedModalVisible] = useState(false);
   const [hearts, setHearts] = useState<any[]>([]);
@@ -50,7 +54,7 @@ export default function HomeScreen() {
   const scale = (size: number) => (W / guidelineW) * size;
   const vscale = (size: number) => (H / guidelineH) * size;
   const mscale = (size: number, factor = 0.5) => size + (scale(size) - size) * factor;
-  // 🔹 랜덤 메시지 배열
+  
   const bubbleMessages = ["행복해!", "즐거워!", "좋아!", "기분 최고!"];
   const [bubbleMessage, setBubbleMessage] = useState<string | null>(null);
 
@@ -75,6 +79,62 @@ export default function HomeScreen() {
       mounted = false;
     };
   }, [user?.uid]);
+
+  const fetchAndSaveHealthData = async () => {
+    if (role !== "elderly") return;
+
+    try {
+      setIsRefreshing(true);
+
+      if (!HealthModule) throw new Error("Health Connect 모듈을 찾을 수 없습니다.");
+
+      const targetUid = user?.uid;
+      if (!targetUid) {
+        console.warn("uid가 아직 로드되지 않았습니다.");
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const data = await HealthModule.getTodayHealthData();
+
+      const q = query(
+        collection(db, "healthData"),
+        where("uid", "==", targetUid),
+        where("date", "==", today),
+        limit(1)
+      );
+      const existing = await getDocs(q);
+
+      const payload = {
+        heartRate: data.heartRate ?? 0,
+        steps: data.steps ?? 0,
+        calories: data.calories ?? 0,
+        distance: data.distance ?? 0,
+        date: today,
+        timestamp: serverTimestamp(),
+      };
+
+      if (existing.empty) {
+        await addDoc(collection(db, "healthData"), {
+          uid: targetUid,
+          ...payload,
+        });
+        console.log("헬스 데이터 저장 완료");
+      } else {
+        const docId = existing.docs[0].id;
+        await updateDoc(doc(db, "healthData", docId), payload);
+        console.log("헬스 데이터 업데이트 완료");
+      }
+    } catch (err) {
+      console.error("건강 데이터 처리 오류:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    fetchAndSaveHealthData();
+  };
 
   const onSignOut = async () => {
     if (loggingOut) return;
@@ -140,11 +200,9 @@ export default function HomeScreen() {
       return newExp;
     });
 
-    // 🔹 랜덤 메시지 선택
     const randomMsg = bubbleMessages[Math.floor(Math.random() * bubbleMessages.length)];
     setBubbleMessage(randomMsg);
 
-    // 🔹 모션 한 번만 실행
     Animated.sequence([
       Animated.timing(treeScale, {
         toValue: 1.2,
@@ -164,7 +222,6 @@ export default function HomeScreen() {
       }, 1500);
     });
 
-    // 🔹 하트 뿌리기
     const count = 10;
     const newHearts = Array.from({ length: count }).map(() => {
       const id = heartId.current++;
@@ -250,7 +307,6 @@ export default function HomeScreen() {
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" />
 
-      {/* 배경 그라디언트 - 초록 계열 */}
       <LinearGradient
         colors={["#C8E6C9", "#E8F5E9", "#F1F8E9"]}
         start={{ x: 0, y: 0 }}
@@ -259,7 +315,6 @@ export default function HomeScreen() {
       />
 
       <SafeAreaView style={styles.safeArea}>
-        {/* 상단 헤더 */}
         <View style={styles.header}>
           <View style={styles.leftGroup}>
             <ThemedText style={styles.welcomeText}>안녕하세요!</ThemedText>
@@ -270,27 +325,42 @@ export default function HomeScreen() {
               </View>
             ) : null}
           </View>
-          <Pressable
-            onPress={() => setLogoutModalVisible(true)}
-            disabled={loggingOut}
-            style={({ pressed }) => [
-              styles.logoutBtn,
-              pressed && styles.logoutBtnPressed,
-              loggingOut && { opacity: 0.6 },
-            ]}
-          >
-            <ThemedText style={styles.logoutText}>
-              {loggingOut ? "로그아웃 중..." : "로그아웃"}
-            </ThemedText>
-          </Pressable>
+          <View style={styles.rightGroup}>
+            {role === "elderly" && (
+              <Pressable
+                onPress={handleRefresh}
+                disabled={isRefreshing}
+                style={({ pressed }) => [
+                  styles.refreshBtn,
+                  pressed && styles.refreshBtnPressed,
+                  isRefreshing && { opacity: 0.6 },
+                ]}
+              >
+                <ThemedText style={styles.refreshText}>
+                  {isRefreshing ? "⏳" : "🔄"}
+                </ThemedText>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={() => setLogoutModalVisible(true)}
+              disabled={loggingOut}
+              style={({ pressed }) => [
+                styles.logoutBtn,
+                pressed && styles.logoutBtnPressed,
+                loggingOut && { opacity: 0.6 },
+              ]}
+            >
+              <ThemedText style={styles.logoutText}>
+                {loggingOut ? "로그아웃 중..." : "로그아웃"}
+              </ThemedText>
+            </Pressable>
+          </View>
         </View>
 
-        {/* 펫 레벨 표시 */}
         <View style={styles.levelBadge}>
           <ThemedText style={styles.levelText}>{getLevelName()}</ThemedText>
         </View>
 
-        {/* 캐릭터 영역 */}
         <View style={[styles.centerBox, { top: characterTopPx }]}>
           <Animated.View
             style={[
@@ -327,7 +397,6 @@ export default function HomeScreen() {
             </Animated.View>
           </Pressable>
 
-          {/* 말풍선 */}
           {feedModalVisible && bubbleMessage && (
             <View style={styles.speechWrapper}>
               <View style={styles.speechBubble}>
@@ -339,7 +408,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* 하트 애니메이션 */}
           {hearts.map((h) => (
             <Animated.Text
               key={h.id}
@@ -383,7 +451,6 @@ export default function HomeScreen() {
             </Animated.Text>
           ))}
 
-          {/* 경험치 바 */}
           <View style={styles.expBarBox}>
             <View style={styles.expBarBg}>
               <LinearGradient
@@ -398,7 +465,6 @@ export default function HomeScreen() {
             </ThemedText>
           </View>
 
-          {/* 업그레이드 버튼 */}
           {upgradable && (
             <Pressable style={styles.upgradeBtn} onPress={handleUpgrade}>
               <LinearGradient
@@ -412,7 +478,6 @@ export default function HomeScreen() {
             </Pressable>
           )}
 
-          {/* 리셋 버튼 */}
           {level === 3 && (
             <Pressable style={styles.resetBtn} onPress={handleReset}>
               <ThemedText style={styles.resetText}>강아지로 돌아가기</ThemedText>
@@ -420,7 +485,6 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* 하단 안내 */}
         <View style={styles.footer}>
           <ThemedText style={styles.footerText}>
             {level === 3 ? "강아지가 다 자랐어요!" : "강아지를 터치해서 경험치를 얻어보세요!"}
@@ -428,7 +492,6 @@ export default function HomeScreen() {
         </View>
       </SafeAreaView>
 
-      {/* 로그아웃 모달 */}
       <LogoutConfirmModal
         visible={logoutModalVisible}
         loading={loggingOut}
@@ -465,6 +528,10 @@ const styles = StyleSheet.create({
   leftGroup: {
     gap: 4,
   },
+  rightGroup: {
+    flexDirection: "row",
+    gap: 8,
+  },
   welcomeText: {
     fontSize: 16,
     fontWeight: "600",
@@ -479,6 +546,21 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "800",
     color: "#2E7D32",
+  },
+
+  refreshBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#66BB6A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  refreshBtnPressed: {
+    backgroundColor: "#4CAF50",
+  },
+  refreshText: {
+    fontSize: 18,
   },
 
   logoutBtn: {

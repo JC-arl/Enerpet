@@ -7,7 +7,7 @@ import androidx.health.connect.client.records.*
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import kotlinx.coroutines.*
-import java.time.Instant
+import java.time.*
 import java.time.temporal.ChronoUnit
 import android.app.Activity
 import android.content.Intent
@@ -17,7 +17,6 @@ class HealthModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
     private val client: HealthConnectClient = HealthConnectClient.getOrCreate(reactContext)
-    
     private var permissionPromise: Promise? = null
     private val PERMISSION_REQUEST_CODE = 1001
 
@@ -41,7 +40,6 @@ class HealthModule(reactContext: ReactApplicationContext) :
                     try {
                         val granted = client.permissionController.getGrantedPermissions()
                         val hasAllPermissions = granted.containsAll(permissions)
-                        
                         withContext(Dispatchers.Main) {
                             permissionPromise?.resolve(hasAllPermissions)
                             permissionPromise = null
@@ -65,6 +63,7 @@ class HealthModule(reactContext: ReactApplicationContext) :
 
     override fun getName() = "HealthModule"
 
+    // 🔹 권한 요청
     @ReactMethod
     fun requestPermissions(promise: Promise) {
         CoroutineScope(Dispatchers.Main).launch {
@@ -78,9 +77,10 @@ class HealthModule(reactContext: ReactApplicationContext) :
                 val activity = getCurrentActivity()
                 if (activity != null) {
                     permissionPromise = promise
-                    
-                    val ACTION_MANAGE_HEALTH_PERMISSIONS = "android.health.connect.action.MANAGE_HEALTH_PERMISSIONS"
-                    
+
+                    val ACTION_MANAGE_HEALTH_PERMISSIONS =
+                        "android.health.connect.action.MANAGE_HEALTH_PERMISSIONS"
+
                     val intent = if (Build.VERSION.SDK_INT >= 34) {
                         Intent(ACTION_MANAGE_HEALTH_PERMISSIONS).apply {
                             putExtra(Intent.EXTRA_PACKAGE_NAME, reactApplicationContext.packageName)
@@ -88,7 +88,7 @@ class HealthModule(reactContext: ReactApplicationContext) :
                     } else {
                         Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
                     }
-                    
+
                     try {
                         activity.startActivityForResult(intent, PERMISSION_REQUEST_CODE)
                     } catch (e: Exception) {
@@ -108,6 +108,7 @@ class HealthModule(reactContext: ReactApplicationContext) :
         }
     }
 
+    // 🔹 권한 확인
     @ReactMethod
     fun checkPermissions(promise: Promise) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -120,6 +121,7 @@ class HealthModule(reactContext: ReactApplicationContext) :
         }
     }
 
+    // 🔹 오늘의 건강 데이터 읽기
     @ReactMethod
     fun getTodayHealthData(promise: Promise) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -130,35 +132,88 @@ class HealthModule(reactContext: ReactApplicationContext) :
                     return@launch
                 }
 
+                // ✅ 한국 시간 기준 오늘 자정~현재
                 val now = Instant.now()
-                val startOfDay = now.truncatedTo(ChronoUnit.DAYS)
+                val startOfDay = LocalDate.now()
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
 
+                android.util.Log.d("HealthModule", "==========================================")
+                android.util.Log.d("HealthModule", "🕐 조회 시작 시간(로컬): $startOfDay")
+                android.util.Log.d("HealthModule", "🕐 현재 시간: $now")
+
+                // 👣 걸음 수
                 val stepsRes = client.readRecords(
-                    ReadRecordsRequest(StepsRecord::class, timeRangeFilter = TimeRangeFilter.after(startOfDay))
+                    ReadRecordsRequest(
+                        StepsRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
+                    )
                 )
-                val steps = stepsRes.records.sumOf { it.count }.toInt()
 
+                android.util.Log.d("HealthModule", "👣 걸음 수 레코드 개수: ${stepsRes.records.size}")
+                if (stepsRes.records.isEmpty()) {
+                    android.util.Log.w("HealthModule", "⚠️ 걸음 수 레코드가 비어있습니다!")
+                } else {
+                    stepsRes.records.forEachIndexed { index, record ->
+                        android.util.Log.d("HealthModule", "  레코드 #$index:")
+                        android.util.Log.d("HealthModule", "    count: ${record.count}")
+                        android.util.Log.d("HealthModule", "    startTime: ${record.startTime}")
+                        android.util.Log.d("HealthModule", "    endTime: ${record.endTime}")
+                        android.util.Log.d("HealthModule", "    source: ${record.metadata.dataOrigin.packageName}")
+                    }
+                }
+                val steps = stepsRes.records.sumOf { it.count }.toInt()
+                android.util.Log.d("HealthModule", "👣 총 걸음 수: $steps")
+
+                // ❤️ 심박수
                 val hrRes = client.readRecords(
-                    ReadRecordsRequest(HeartRateRecord::class, timeRangeFilter = TimeRangeFilter.after(startOfDay))
+                    ReadRecordsRequest(
+                        HeartRateRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
+                    )
                 )
                 val avgBpm = if (hrRes.records.isNotEmpty()) {
                     hrRes.records.flatMap { it.samples }.map { it.beatsPerMinute }.average()
                 } else 0.0
+                android.util.Log.d("HealthModule", "❤️ 평균 심박수: $avgBpm")
 
+                // 🔥 총 칼로리
                 val calRes = client.readRecords(
-                    ReadRecordsRequest(TotalCaloriesBurnedRecord::class, timeRangeFilter = TimeRangeFilter.after(startOfDay))
+                    ReadRecordsRequest(
+                        TotalCaloriesBurnedRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
+                    )
                 )
                 val calories = calRes.records.sumOf { it.energy.inKilocalories }
+                android.util.Log.d("HealthModule", "🔥 총 칼로리: $calories")
 
+                // 📏 이동 거리
                 val distRes = client.readRecords(
-                    ReadRecordsRequest(DistanceRecord::class, timeRangeFilter = TimeRangeFilter.after(startOfDay))
+                    ReadRecordsRequest(
+                        DistanceRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
+                    )
                 )
                 val distance = distRes.records.sumOf { it.distance.inMeters }
+                android.util.Log.d("HealthModule", "📏 총 거리: $distance")
 
+                // 💪 활동 칼로리
                 val actRes = client.readRecords(
-                    ReadRecordsRequest(ActiveCaloriesBurnedRecord::class, timeRangeFilter = TimeRangeFilter.after(startOfDay))
+                    ReadRecordsRequest(
+                        ActiveCaloriesBurnedRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
+                    )
                 )
                 val activeCalories = actRes.records.sumOf { it.energy.inKilocalories }
+
+                android.util.Log.d("HealthModule", "==========================================")
+                android.util.Log.d("HealthModule", "📊 최종 결과:")
+                android.util.Log.d("HealthModule", "  걸음 수: $steps")
+                android.util.Log.d("HealthModule", "  심박수: $avgBpm")
+                android.util.Log.d("HealthModule", "  칼로리: $calories")
+                android.util.Log.d("HealthModule", "  거리: $distance")
+                android.util.Log.d("HealthModule", "  활동칼로리: $activeCalories")
+                android.util.Log.d("HealthModule", "==========================================")
 
                 val result = Arguments.createMap().apply {
                     putInt("steps", steps)
@@ -169,7 +224,9 @@ class HealthModule(reactContext: ReactApplicationContext) :
                 }
 
                 promise.resolve(result)
+
             } catch (e: Exception) {
+                android.util.Log.e("HealthModule", "❌ 에러 발생", e)
                 promise.reject("HEALTH_ERROR", e)
             }
         }

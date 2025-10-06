@@ -7,16 +7,12 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   NativeModules,
   Pressable,
   StyleSheet,
   Text,
   View,
   ScrollView,
-  Animated,
-  PanResponder,
-  Dimensions,
 } from "react-native";
 
 import {
@@ -33,7 +29,6 @@ import {
 } from "firebase/firestore";
 
 const { HealthModule } = NativeModules;
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 type HealthRecord = {
   id: number;
@@ -80,11 +75,14 @@ export default function DetailScreen() {
   };
 
   const fetchAndSaveHealthData = useCallback(async (showLoading = true) => {
-    console.log("role:", role);
-    console.log("elderlyId:", elderlyId);
-    console.log("user.uid:", user?.uid);
-
     if (!isToday) return;
+
+    // 보호자는 데이터를 저장하지 않음 (읽기만)
+    if (role === "guardian") {
+      if (showLoading) setLoading(false);
+      if (!showLoading) setIsRefreshing(false);
+      return;
+    }
 
     try {
       if (showLoading) setLoading(true);
@@ -92,11 +90,17 @@ export default function DetailScreen() {
 
       if (!HealthModule) throw new Error("Health Connect 모듈을 찾을 수 없습니다.");
 
+      // 피보호자만 자신의 uid로 저장
+      const targetUid = user?.uid;
+      if (!targetUid) {
+        console.warn("uid가 아직 로드되지 않았습니다.");
+        setLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+
       const today = new Date().toISOString().split("T")[0];
       const data = await HealthModule.getTodayHealthData();
-
-      const targetUid = role === "guardian" ? elderlyId : user?.uid;
-      if (!targetUid) throw new Error("uid를 확인할 수 없습니다.");
 
       const q = query(
         collection(db, "healthData"),
@@ -132,25 +136,51 @@ export default function DetailScreen() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [role, elderlyId, user, isToday]);
+  }, [role, user, isToday]);
 
-  useEffect(() => {
-    if (isToday) {
-      fetchAndSaveHealthData(true);
-    } else {
-      setLoading(false);
-    }
-  }, [fetchAndSaveHealthData, isToday]);
-
-  useEffect(() => {
+  const saveTimelineRecord = useCallback(async () => {
     if (!isToday) return;
 
-    const interval = setInterval(() => {
-      fetchAndSaveHealthData(false);
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [fetchAndSaveHealthData, isToday]);
+    // 보호자는 기록을 추가하지 않음 (읽기만)
+    if (role === "guardian") return;
 
+    try {
+      if (!HealthModule) return;
+
+      // 피보호자만 자신의 uid로 저장
+      const targetUid = user?.uid;
+      if (!targetUid) {
+        console.warn("uid가 아직 로드되지 않았습니다.");
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const data = await HealthModule.getTodayHealthData();
+
+      const now = new Date();
+      const timeString = `${today} ${now
+        .getHours()
+        .toString()
+        .padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+
+      await addDoc(collection(db, "healthTimeline"), {
+        uid: targetUid,
+        date: today,
+        timestamp: timeString,
+        heartRate: data.heartRate ?? 0,
+        steps: data.steps ?? 0,
+        calories: data.calories ?? 0,
+        distance: data.distance ?? 0,
+        createdAt: serverTimestamp(),
+      });
+
+      console.log("시간별 기록 추가 완료:", timeString);
+    } catch (err) {
+      console.error("시간별 기록 저장 오류:", err);
+    }
+  }, [role, user, isToday]);
+
+  // 실시간 구독: 최신 데이터 (메인 카드)
   useEffect(() => {
     const targetUid = role === "guardian" ? elderlyId : user?.uid;
     if (!targetUid) return;
@@ -172,35 +202,78 @@ export default function DetailScreen() {
           calories: docData.calories ?? 0,
           distance: docData.distance ?? 0,
         });
-
-        const now = new Date();
-        const timeString = `${selectedDate} ${now
-          .getHours()
-          .toString()
-          .padStart(2, "0")}:${now
-            .getMinutes()
-            .toString()
-            .padStart(2, "0")}`;
-
-        const newRecord: HealthRecord = {
-          id: 1,
-          timestamp: timeString,
-          heart_rate: docData.heartRate ?? 0,
-          steps: docData.steps ?? 0,
-          calories: docData.calories ?? 0,
-          distance: docData.distance ?? 0,
-        };
-
-        setRecords([newRecord]);
       } else {
         setCurrentData(null);
-        setRecords([]);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [role, elderlyId, user, selectedDate]);
+
+  // 실시간 구독: 시간별 기록
+  useEffect(() => {
+    const targetUid = role === "guardian" ? elderlyId : user?.uid;
+    if (!targetUid) return;
+
+    const q = query(
+      collection(db, "healthTimeline"),
+      where("uid", "==", targetUid),
+      where("date", "==", selectedDate)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const timelineRecords: HealthRecord[] = snapshot.docs
+        .map((doc, index) => {
+          const data = doc.data();
+          return {
+            id: index,
+            timestamp: data.timestamp,
+            heart_rate: data.heartRate ?? 0,
+            steps: data.steps ?? 0,
+            calories: data.calories ?? 0,
+            distance: data.distance ?? 0,
+          };
+        })
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+      setRecords(timelineRecords);
+    });
+
+    return () => unsubscribe();
+  }, [role, elderlyId, user, selectedDate]);
+
+  // 초기 로드 (피보호자만 저장)
+  useEffect(() => {
+    if (isToday && role === "elderly") {
+      fetchAndSaveHealthData(true);
+      saveTimelineRecord();
+    } else {
+      setLoading(false);
+    }
+  }, [fetchAndSaveHealthData, saveTimelineRecord, isToday, role]);
+
+  // 1분마다 최신 데이터 업데이트 (피보호자만)
+  useEffect(() => {
+    if (!isToday || role === "guardian") return;
+
+    const interval = setInterval(() => {
+      fetchAndSaveHealthData(false);
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [fetchAndSaveHealthData, isToday, role]);
+
+  // 5분마다 시간별 기록 추가 (피보호자만)
+  useEffect(() => {
+    if (!isToday || role === "guardian") return;
+
+    const interval = setInterval(() => {
+      saveTimelineRecord();
+    }, 300000);
+
+    return () => clearInterval(interval);
+  }, [saveTimelineRecord, isToday, role]);
 
   const onSignOut = async () => {
     if (loggingOut) return;
@@ -217,7 +290,7 @@ export default function DetailScreen() {
   };
 
   const handleRefresh = () => {
-    if (isToday) {
+    if (isToday && role === "elderly") {
       fetchAndSaveHealthData(false);
     }
   };
@@ -234,12 +307,11 @@ export default function DetailScreen() {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* 헤더 */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={styles.headerTitle}>건강 모니터</Text>
             <View style={styles.headerButtons}>
-              {isToday && (
+              {isToday && role === "elderly" && (
                 <Pressable
                   onPress={handleRefresh}
                   disabled={isRefreshing}
@@ -270,7 +342,6 @@ export default function DetailScreen() {
             </View>
           </View>
 
-          {/* 날짜 선택기 */}
           <View style={styles.datePicker}>
             <Pressable onPress={() => changeDate(-1)} style={styles.dateArrow}>
               <Text style={styles.dateArrowText}>←</Text>
@@ -297,7 +368,6 @@ export default function DetailScreen() {
           </View>
         </View>
 
-        {/* 메인 건강 상태 카드 */}
         <View style={styles.mainContent}>
           {currentData ? (
             <View style={styles.mainHealthCard}>
@@ -356,10 +426,12 @@ export default function DetailScreen() {
               <Text style={styles.emptyMainIcon}>📊</Text>
               <Text style={styles.emptyMainText}>
                 {isToday
-                  ? "오늘의 건강 데이터가 없습니다."
+                  ? role === "guardian"
+                    ? "피보호자의 건강 데이터가 아직 없습니다."
+                    : "오늘의 건강 데이터가 없습니다."
                   : "해당 날짜의 건강 데이터가 없습니다."}
               </Text>
-              {isToday && (
+              {isToday && role === "elderly" && (
                 <Pressable style={styles.emptyMainBtn} onPress={handleRefresh}>
                   <Text style={styles.emptyMainBtnText}>데이터 불러오기</Text>
                 </Pressable>
@@ -368,7 +440,6 @@ export default function DetailScreen() {
           )}
         </View>
 
-        {/* 시간별 기록 섹션 */}
         <View style={styles.timelineSection}>
           <Pressable
             style={styles.timelineHeader}
@@ -449,11 +520,10 @@ export default function DetailScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* 모달 */}
       <LogoutConfirmModal
         visible={logoutModalVisible}
         loading={loggingOut}
-        role="guardian"
+        role={role || "elderly"}
         onCancel={() => setLogoutModalVisible(false)}
         onConfirm={() => {
           setLogoutModalVisible(false);
@@ -464,10 +534,10 @@ export default function DetailScreen() {
 
       <LogoutSuccessModal
         visible={logoutSuccessVisible}
-        role="guardian"
+        role={role || "elderly"}
         onClose={() => {
           setLogoutSuccessVisible(false);
-          router.replace("/sign-in?role=guardian");
+          router.replace(`/sign-in?role=${role}`);
         }}
       />
     </View>
@@ -539,8 +609,6 @@ const styles = StyleSheet.create({
     minWidth: 200,
     textAlign: "center",
   },
-
-  // 메인 컨텐츠
   mainContent: {
     padding: 20,
     marginTop: -40,
@@ -597,7 +665,6 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontWeight: "500",
   },
-
   emptyMainCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
@@ -627,8 +694,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 15,
   },
-
-  // 시간별 기록 섹션
   timelineSection: {
     marginHorizontal: 20,
     marginTop: 16,

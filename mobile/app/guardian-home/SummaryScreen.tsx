@@ -1,16 +1,18 @@
 import { Link } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  ActivityIndicator,
+} from "react-native";
 import { useAuth } from "@/lib/auth";
 import { db } from "@/lib/firebase";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-} from "firebase/firestore";
+import { collection, query, where, limit, onSnapshot } from "firebase/firestore";
 
-type AvgHealthData = {
+type HealthData = {
   heartRate: number;
   steps: number;
   calories: number;
@@ -19,28 +21,28 @@ type AvgHealthData = {
 
 export default function SummaryScreen() {
   const { user, role, elderlyId } = useAuth();
-  
+
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [avgData, setAvgData] = useState<AvgHealthData | null>(null);
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
+  const [avgHeartRate, setAvgHeartRate] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   const isToday = selectedDate === new Date().toISOString().split("T")[0];
 
-  // 날짜 변경 함수
   const changeDate = (days: number) => {
     const current = new Date(selectedDate);
     current.setDate(current.getDate() + days);
     const newDate = current.toISOString().split("T")[0];
     const today = new Date().toISOString().split("T")[0];
-    
+
     if (newDate <= today) {
       setSelectedDate(newDate);
     }
   };
 
-  // Firestore 실시간 구독 - 날짜별 평균 계산
+  // 최신 건강 데이터 (걸음 수, 칼로리, 거리)
   useEffect(() => {
     const targetUid = role === "guardian" ? elderlyId : user?.uid;
     if (!targetUid) return;
@@ -50,29 +52,56 @@ export default function SummaryScreen() {
     const q = query(
       collection(db, "healthData"),
       where("uid", "==", targetUid),
+      where("date", "==", selectedDate),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const docData = snapshot.docs[0].data();
+
+        setHealthData({
+          heartRate: Math.round(docData.heartRate || 0),
+          steps: docData.steps || 0,
+          calories: docData.calories || 0,
+          distance: docData.distance || 0,
+        });
+      } else {
+        setHealthData(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [selectedDate, role, elderlyId, user]);
+
+  // 시간별 기록에서 평균 심박수 계산
+  useEffect(() => {
+    const targetUid = role === "guardian" ? elderlyId : user?.uid;
+    if (!targetUid) return;
+
+    const q = query(
+      collection(db, "healthTimeline"),
+      where("uid", "==", targetUid),
       where("date", "==", selectedDate)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        const allData = snapshot.docs.map(doc => doc.data());
-        
-        // 평균값 계산
-        const count = allData.length;
-        const avg: AvgHealthData = {
-          heartRate: Math.round(
-            allData.reduce((sum, d) => sum + (d.heartRate || 0), 0) / count
-          ),
-          steps: allData.reduce((sum, d) => sum + (d.steps || 0), 0),
-          calories: allData.reduce((sum, d) => sum + (d.calories || 0), 0),
-          distance: allData.reduce((sum, d) => sum + (d.distance || 0), 0),
-        };
-        
-        setAvgData(avg);
+        const records = snapshot.docs.map((doc) => doc.data());
+        const validHeartRates = records
+          .map((r) => r.heartRate || 0)
+          .filter((hr) => hr > 0);
+
+        if (validHeartRates.length > 0) {
+          const avg = validHeartRates.reduce((sum, hr) => sum + hr, 0) / validHeartRates.length;
+          setAvgHeartRate(Math.round(avg));
+        } else {
+          setAvgHeartRate(0);
+        }
       } else {
-        setAvgData(null);
+        setAvgHeartRate(0);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -89,18 +118,16 @@ export default function SummaryScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      {/* 헤더 */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>
           {isToday ? "오늘의 요약" : "건강 요약"}
         </Text>
-        
-        {/* 날짜 선택기 */}
+
         <View style={styles.datePicker}>
           <Pressable onPress={() => changeDate(-1)} style={styles.dateArrow}>
             <Text style={styles.dateArrowText}>←</Text>
           </Pressable>
-          
+
           <Text style={styles.dateText}>
             {new Date(selectedDate).toLocaleDateString("ko-KR", {
               year: "numeric",
@@ -109,36 +136,41 @@ export default function SummaryScreen() {
             })}
             {isToday && " (오늘)"}
           </Text>
-          
-          <Pressable 
-            onPress={() => changeDate(1)} 
+
+          <Pressable
+            onPress={() => changeDate(1)}
             style={styles.dateArrow}
             disabled={isToday}
           >
-            <Text style={[styles.dateArrowText, isToday && styles.dateArrowDisabled]}>
+            <Text
+              style={[styles.dateArrowText, isToday && styles.dateArrowDisabled]}
+            >
               →
             </Text>
           </Pressable>
         </View>
       </View>
 
-      {/* 메인 통계 카드 */}
-      {avgData ? (
+      {healthData ? (
         <>
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
               <View style={styles.iconCircle}>
                 <Text style={styles.iconText}>👣</Text>
               </View>
-              <Text style={styles.statValue}>{avgData.steps.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>총 걸음 수</Text>
+              <Text style={styles.statValue}>
+                {healthData.steps.toLocaleString()}
+              </Text>
+              <Text style={styles.statLabel}>걸음 수</Text>
             </View>
 
             <View style={styles.statCard}>
               <View style={styles.iconCircle}>
                 <Text style={styles.iconText}>❤️</Text>
               </View>
-              <Text style={styles.statValue}>{avgData.heartRate}</Text>
+              <Text style={styles.statValue}>
+                {avgHeartRate > 0 ? avgHeartRate : "-"}
+              </Text>
               <Text style={styles.statLabel}>평균 심박수</Text>
             </View>
 
@@ -146,33 +178,35 @@ export default function SummaryScreen() {
               <View style={styles.iconCircle}>
                 <Text style={styles.iconText}>🔥</Text>
               </View>
-              <Text style={styles.statValue}>{avgData.calories.toFixed(0)}</Text>
-              <Text style={styles.statLabel}>총 칼로리</Text>
+              <Text style={styles.statValue}>
+                {Math.round(healthData.calories)}
+              </Text>
+              <Text style={styles.statLabel}>칼로리</Text>
             </View>
           </View>
 
-          {/* 추가 정보 카드 */}
           <View style={styles.extraInfoCard}>
             <View style={styles.extraInfoRow}>
               <Text style={styles.extraInfoIcon}>📏</Text>
               <View style={styles.extraInfoContent}>
-                <Text style={styles.extraInfoLabel}>총 이동 거리</Text>
+                <Text style={styles.extraInfoLabel}>이동 거리</Text>
                 <Text style={styles.extraInfoValue}>
-                  {(avgData.distance / 1000).toFixed(2)} km
+                  {(healthData.distance / 1000).toFixed(2)} km
                 </Text>
               </View>
             </View>
           </View>
 
-          {/* AI 인사이트 */}
           <View style={styles.insightCard}>
             <View style={styles.insightHeader}>
               <Text style={styles.insightIcon}>💡</Text>
-              <Text style={styles.insightTitle}>AI 건강 인사이트</Text>
+              <Text style={styles.insightTitle}>건강 인사이트</Text>
             </View>
             <Text style={styles.insightText}>
-              {avgData.steps >= 8000 
+              {healthData.steps >= 8000
                 ? `훌륭해요! ${isToday ? "오늘" : "이날"} 목표 걸음 수를 달성했습니다. 꾸준히 유지하세요!`
+                : healthData.steps >= 5000
+                ? `좋아요! ${isToday ? "오늘" : "이날"} ${healthData.steps.toLocaleString()}걸음을 걸으셨네요. 조금만 더 걸으면 목표 달성입니다!`
                 : `${isToday ? "오늘" : "이날"}은 목표 걸음 수에 조금 못 미쳤어요. 가벼운 산책을 추천드립니다.`}
             </Text>
           </View>
@@ -181,22 +215,24 @@ export default function SummaryScreen() {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>📊</Text>
           <Text style={styles.emptyText}>
-            {isToday 
-              ? "오늘의 건강 데이터가 아직 없습니다." 
+            {isToday
+              ? role === "guardian"
+                ? "피보호자의 건강 데이터가 아직 없습니다."
+                : "오늘의 건강 데이터가 아직 없습니다."
               : "해당 날짜의 건강 데이터가 없습니다."}
           </Text>
           <Text style={styles.emptySubtext}>
-            {isToday && "상세 기록 페이지에서 데이터를 불러올 수 있습니다."}
+            {isToday && role === "elderly" && "상세 기록 페이지에서 데이터를 불러올 수 있습니다."}
+            {isToday && role === "guardian" && "피보호자가 앱을 사용하면 데이터가 수집됩니다."}
           </Text>
         </View>
       )}
 
-      {/* 상세 보기 버튼 */}
       <Link href="/guardian-home/DetailScreen" asChild>
-        <Pressable 
+        <Pressable
           style={({ pressed }) => [
             styles.detailButton,
-            pressed && styles.detailButtonPressed
+            pressed && styles.detailButtonPressed,
           ]}
         >
           <Text style={styles.detailButtonText}>상세 기록 보기</Text>
