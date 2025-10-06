@@ -48,6 +48,7 @@ type CurrentHealthData = {
 
 export default function DetailScreen() {
   const { user, role, elderlyId, signOut } = useAuth();
+  const [cachedRole, setCachedRole] = useState(role);
 
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -179,6 +180,10 @@ export default function DetailScreen() {
       console.error("시간별 기록 저장 오류:", err);
     }
   }, [role, user, isToday]);
+
+  useEffect(() => {
+    if (role) setCachedRole(role);
+  }, [role]);
 
   // 실시간 구독: 최신 데이터 (메인 카드)
   useEffect(() => {
@@ -523,7 +528,7 @@ export default function DetailScreen() {
       <LogoutConfirmModal
         visible={logoutModalVisible}
         loading={loggingOut}
-        role={role || "elderly"}
+        role={cachedRole || "elderly"} // ✅ 캐시된 역할 사용
         onCancel={() => setLogoutModalVisible(false)}
         onConfirm={() => {
           setLogoutModalVisible(false);
@@ -534,10 +539,24 @@ export default function DetailScreen() {
 
       <LogoutSuccessModal
         visible={logoutSuccessVisible}
-        role={role || "elderly"}
+        role={role ?? "guardian"} // ✅ 동일하게
         onClose={() => {
           setLogoutSuccessVisible(false);
           router.replace(`/sign-in?role=${role}`);
+        }}
+      />
+
+      <LogoutSuccessModal
+        visible={logoutSuccessVisible}
+        role={cachedRole || "elderly"} // ✅ 캐시된 역할 사용
+        onClose={() => {
+          setLogoutSuccessVisible(false);
+          // ✅ 역할별로 정확히 이동
+          if (cachedRole === "guardian") {
+            router.replace("/sign-in?role=guardian");
+          } else {
+            router.replace("/sign-in?role=elderly");
+          }
         }}
       />
     </View>

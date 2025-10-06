@@ -13,11 +13,15 @@ interface Props {
   role?: "elderly" | "guardian"; // ✅ 역할 구분
 }
 
-export default function LogoutSuccessModal({ visible, onClose, role = "elderly" }: Props) {
-  // ✅ 역할별 색상 정의
+export default function LogoutSuccessModal({
+  visible,
+  onClose,
+  role = "elderly",
+}: Props) {
+  // ✅ 역할별 색상 (일관성 있게 수정)
   const colors = {
-    elderly: "#2196F3", // 파랑
-    guardian: "#4CAF50", // 초록
+    elderly: "#4CAF50", // 초록 (피보호자)
+    guardian: "#2196F3", // 파랑 (보호자)
   };
 
   return (
@@ -30,7 +34,11 @@ export default function LogoutSuccessModal({ visible, onClose, role = "elderly" 
       <View style={styles.backdrop}>
         <View style={styles.box}>
           <Text style={styles.title}>로그아웃 완료</Text>
-          <Text style={styles.message}>로그아웃이 완료되었습니다!</Text>
+          <Text style={styles.message}>
+            {role === "elderly"
+              ? "피보호자 계정이 로그아웃되었습니다."
+              : "보호자 계정이 로그아웃되었습니다."}
+          </Text>
 
           <Pressable
             style={[styles.confirmBtn, { backgroundColor: colors[role] }]}

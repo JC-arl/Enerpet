@@ -30,8 +30,8 @@ export default function LogoutConfirmModal({
   const TAB_BAR_HEIGHT = 49 + insets.bottom;
 
   const colors = {
-    elderly: "#2196F3",
-    guardian: "#4CAF50",
+    elderly: "#4CAF50",
+    guardian: "#2196F3",
   };
 
   return (
