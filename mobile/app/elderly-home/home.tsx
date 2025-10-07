@@ -23,6 +23,7 @@ import { doc, getDoc, collection, query, where, limit, getDocs, addDoc, updateDo
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useGame } from "@/lib/GameContext";
+import { detectAnomaly } from "@/lib/anomaly";
 
 const { HealthModule } = NativeModules;
 
@@ -54,7 +55,7 @@ export default function HomeScreen() {
   const scale = (size: number) => (W / guidelineW) * size;
   const vscale = (size: number) => (H / guidelineH) * size;
   const mscale = (size: number, factor = 0.5) => size + (scale(size) - size) * factor;
-  
+
   const bubbleMessages = ["행복해!", "즐거워!", "좋아!", "기분 최고!"];
   const [bubbleMessage, setBubbleMessage] = useState<string | null>(null);
 
@@ -86,7 +87,8 @@ export default function HomeScreen() {
     try {
       setIsRefreshing(true);
 
-      if (!HealthModule) throw new Error("Health Connect 모듈을 찾을 수 없습니다.");
+      if (!HealthModule)
+        throw new Error("Health Connect 모듈을 찾을 수 없습니다.");
 
       const targetUid = user?.uid;
       if (!targetUid) {
@@ -114,6 +116,22 @@ export default function HomeScreen() {
         timestamp: serverTimestamp(),
       };
 
+      // 🔹 (1) 이상 탐지 실행
+      const { isAnomaly, type } = detectAnomaly(payload.heartRate, payload.steps);
+
+      // 🔹 (2) 이상치 발생 시 health_alerts 컬렉션에 추가
+      if (isAnomaly) {
+        await addDoc(collection(db, "health_alerts"), {
+          uid: targetUid,
+          timestamp: serverTimestamp(),
+          heart_rate: payload.heartRate,
+          steps: payload.steps,
+          anomaly_type: type,
+        });
+        console.log("🚨 이상 감지됨:", type);
+      }
+
+      // 🔹 (3) 평소처럼 healthData 저장 or 업데이트
       if (existing.empty) {
         await addDoc(collection(db, "healthData"), {
           uid: targetUid,
@@ -134,19 +152,6 @@ export default function HomeScreen() {
 
   const handleRefresh = () => {
     fetchAndSaveHealthData();
-  };
-
-  const onSignOut = async () => {
-    if (loggingOut) return;
-    try {
-      setLoggingOut(true);
-      await signOut();
-      await AsyncStorage.removeItem("authToken");
-    } catch (e) {
-      console.warn("로그아웃 실패:", e);
-    } finally {
-      setLoggingOut(false);
-    }
   };
 
   const confirmLogout = async () => {
