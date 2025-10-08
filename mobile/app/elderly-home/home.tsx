@@ -82,22 +82,33 @@ export default function HomeScreen() {
   }, [user?.uid]);
 
   const fetchAndSaveHealthData = async () => {
-    if (role !== "elderly") return;
+    console.log("🔵 [피보호자] fetchAndSaveHealthData 호출됨");
+    
+    if (role !== "elderly") {
+      console.log("⛔ [피보호자] elderly가 아니므로 저장 스킵");
+      return;
+    }
 
     try {
       setIsRefreshing(true);
 
+      console.log("📡 [피보호자] HealthModule 확인 중...");
       if (!HealthModule)
         throw new Error("Health Connect 모듈을 찾을 수 없습니다.");
+      console.log("✅ [피보호자] HealthModule 존재 확인");
 
       const targetUid = user?.uid;
+      console.log("🆔 [피보호자] targetUid:", targetUid);
+      
       if (!targetUid) {
-        console.warn("uid가 아직 로드되지 않았습니다.");
+        console.warn("⚠️ [피보호자] uid가 아직 로드되지 않았습니다.");
         return;
       }
 
       const today = new Date().toISOString().split("T")[0];
+      console.log("📡 [피보호자] HealthModule에서 데이터 수집 중...");
       const data = await HealthModule.getTodayHealthData();
+      console.log("📊 [피보호자] 가져온 데이터:", data);
 
       const q = query(
         collection(db, "healthData"),
@@ -128,25 +139,85 @@ export default function HomeScreen() {
           steps: payload.steps,
           anomaly_type: type,
         });
-        console.log("🚨 이상 감지됨:", type);
+        console.log("🚨 [피보호자] 이상 감지됨:", type);
       }
+
+      console.log("🧾 [피보호자] Firestore에 저장할 데이터:", { uid: targetUid, ...payload });
 
       // 🔹 (3) 평소처럼 healthData 저장 or 업데이트
       if (existing.empty) {
+        console.log("📝 [피보호자] 새 문서 생성 중...");
         await addDoc(collection(db, "healthData"), {
           uid: targetUid,
           ...payload,
         });
-        console.log("헬스 데이터 저장 완료");
+        console.log("✅ [피보호자] 헬스 데이터 저장 완료");
       } else {
         const docId = existing.docs[0].id;
+        console.log("📝 [피보호자] 기존 문서 업데이트 중... (docId:", docId, ")");
         await updateDoc(doc(db, "healthData", docId), payload);
-        console.log("헬스 데이터 업데이트 완료");
+        console.log("✅ [피보호자] 헬스 데이터 업데이트 완료");
       }
     } catch (err) {
-      console.error("건강 데이터 처리 오류:", err);
+      console.error("❌ [피보호자] 건강 데이터 처리 오류:", err);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const saveTimelineRecord = async () => {
+    console.log("🔵 [피보호자] saveTimelineRecord 호출됨");
+    
+    if (role !== "elderly") {
+      console.log("⛔ [피보호자] elderly가 아니므로 타임라인 기록 스킵");
+      return;
+    }
+
+    try {
+      console.log("📡 [피보호자] HealthModule 확인 중...");
+      if (!HealthModule) {
+        console.log("⚠️ [피보호자] HealthModule이 없습니다");
+        return;
+      }
+      console.log("✅ [피보호자] HealthModule 존재 확인");
+
+      const targetUid = user?.uid;
+      console.log("🆔 [피보호자] 타임라인 - targetUid:", targetUid);
+      
+      if (!targetUid) {
+        console.warn("⚠️ [피보호자] uid가 아직 로드되지 않았습니다.");
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      console.log("📡 [피보호자] 타임라인용 HealthModule 데이터 수집 중...");
+      const data = await HealthModule.getTodayHealthData();
+      console.log("📊 [피보호자] 타임라인 - 가져온 데이터:", data);
+
+      const now = new Date();
+      const timeString = `${today} ${now
+        .getHours()
+        .toString()
+        .padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+
+      const timelineData = {
+        uid: targetUid,
+        date: today,
+        timestamp: timeString,
+        heartRate: data.heartRate ?? 0,
+        steps: data.steps ?? 0,
+        calories: data.calories ?? 0,
+        distance: data.distance ?? 0,
+        createdAt: serverTimestamp(),
+      };
+      console.log("🧾 [피보호자] 타임라인 - Firestore에 저장할 데이터:", timelineData);
+
+      console.log("📝 [피보호자] 타임라인 문서 생성 중...");
+      await addDoc(collection(db, "healthTimeline"), timelineData);
+
+      console.log("✅ [피보호자] 시간별 기록 추가 완료:", timeString);
+    } catch (err) {
+      console.error("❌ [피보호자] 시간별 기록 저장 오류:", err);
     }
   };
 
@@ -165,6 +236,16 @@ export default function HomeScreen() {
       return () => clearTimeout(timer);
     }
   }, [feedModalVisible]);
+
+  const onSignOut = async () => {
+    try {
+      await signOut();
+      console.log("✅ 로그아웃 성공");
+      setLogoutModalVisible(false);
+    } catch (error) {
+      console.error("❌ 로그아웃 오류:", error);
+    }
+  };
 
   const characterTopPx = useMemo(() => {
     const ratio = level === 1 ? 0.38 : level === 2 ? 0.36 : 0.33;
@@ -307,6 +388,45 @@ export default function HomeScreen() {
     if (level === 2) return "청년 강아지";
     return "어른 강아지";
   };
+
+  // 🔁 1분마다 healthData 자동 저장 & 타임라인 기록
+  useEffect(() => {
+    if (role !== "elderly") {
+      console.log("🛑 [피보호자] role이 elderly가 아니므로 자동저장 비활성화");
+      return;
+    }
+
+    console.log("👀 [피보호자] 자동저장 루프 시작 준비...");
+
+    let interval: NodeJS.Timeout | null = null;
+    let waitForRoleInterval: NodeJS.Timeout | null = null;
+
+    const startLoop = () => {
+      console.log("✅ [피보호자] 자동 저장 루프 시작됨!");
+      interval = setInterval(() => {
+        console.log("💾 [자동저장] healthData & timeline 저장 실행 중...");
+        fetchAndSaveHealthData();
+        saveTimelineRecord();
+      }, 60000); // 60초마다 실행
+    };
+
+    // role이 로드될 때까지 대기
+    waitForRoleInterval = setInterval(() => {
+      if (role === "elderly" && user?.uid) {
+        console.log("🎯 [피보호자] role=elderly 확인됨 → 루프 시작");
+        clearInterval(waitForRoleInterval!);
+        startLoop();
+      } else {
+        console.log("⏳ [피보호자] role 아직 준비 중... 대기");
+      }
+    }, 2000);
+
+    return () => {
+      console.log("🟠 [피보호자] 자동저장 루프 종료");
+      if (interval) clearInterval(interval);
+      if (waitForRoleInterval) clearInterval(waitForRoleInterval);
+    };
+  }, [role, user?.uid]);
 
   return (
     <View style={styles.screen}>

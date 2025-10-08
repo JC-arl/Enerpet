@@ -76,10 +76,19 @@ export default function DetailScreen() {
   };
 
   const fetchAndSaveHealthData = useCallback(async (showLoading = true) => {
-    if (!isToday) return;
+    console.log("🔵 fetchAndSaveHealthData 호출됨");
+    
+    if (!isToday) {
+      console.log("⛔ 오늘이 아니므로 저장 스킵");
+      return;
+    }
 
+    const effectiveRole = cachedRole || role;
+    console.log("🔍 현재 effectiveRole:", effectiveRole);
+    
     // 보호자는 데이터를 저장하지 않음 (읽기만)
-    if (role === "guardian") {
+    if (effectiveRole === "guardian") {
+      console.log("⛔ guardian 역할이므로 저장 스킵");
       if (showLoading) setLoading(false);
       if (!showLoading) setIsRefreshing(false);
       return;
@@ -89,19 +98,25 @@ export default function DetailScreen() {
       if (showLoading) setLoading(true);
       else setIsRefreshing(true);
 
+      console.log("📡 HealthModule 확인 중...");
       if (!HealthModule) throw new Error("Health Connect 모듈을 찾을 수 없습니다.");
+      console.log("✅ HealthModule 존재 확인");
 
       // 피보호자만 자신의 uid로 저장
       const targetUid = user?.uid;
+      console.log("🆔 targetUid:", targetUid);
+      
       if (!targetUid) {
-        console.warn("uid가 아직 로드되지 않았습니다.");
+        console.warn("⚠️ uid가 아직 로드되지 않았습니다.");
         setLoading(false);
         setIsRefreshing(false);
         return;
       }
 
       const today = new Date().toISOString().split("T")[0];
+      console.log("📡 HealthModule에서 데이터 수집 중...");
       const data = await HealthModule.getTodayHealthData();
+      console.log("📊 가져온 데이터:", data);
 
       const q = query(
         collection(db, "healthData"),
@@ -119,44 +134,67 @@ export default function DetailScreen() {
         date: today,
         timestamp: serverTimestamp(),
       };
+      console.log("🧾 Firestore에 저장할 데이터:", { uid: targetUid, ...payload });
 
       if (existing.empty) {
+        console.log("📝 새 문서 생성 중...");
         await addDoc(collection(db, "healthData"), {
           uid: targetUid,
           ...payload,
         });
-        console.log("헬스 데이터 Firestore에 저장 완료");
+        console.log("✅ 헬스 데이터 Firestore에 저장 완료");
       } else {
         const docId = existing.docs[0].id;
+        console.log("📝 기존 문서 업데이트 중... (docId:", docId, ")");
         await updateDoc(doc(db, "healthData", docId), payload);
-        console.log("헬스 데이터 Firestore에 업데이트 완료");
+        console.log("✅ 헬스 데이터 Firestore에 업데이트 완료");
       }
     } catch (err) {
-      console.error("건강 데이터 처리 오류:", err);
+      console.error("❌ 건강 데이터 처리 오류:", err);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [role, user, isToday]);
+  }, [role, cachedRole, user, isToday]);
 
   const saveTimelineRecord = useCallback(async () => {
-    if (!isToday) return;
+    console.log("🔵 saveTimelineRecord 호출됨");
+    
+    if (!isToday) {
+      console.log("⛔ 오늘이 아니므로 타임라인 기록 스킵");
+      return;
+    }
 
+    const effectiveRole = cachedRole || role;
+    console.log("🔍 타임라인 - 현재 effectiveRole:", effectiveRole);
+    
     // 보호자는 기록을 추가하지 않음 (읽기만)
-    if (role === "guardian") return;
+    if (effectiveRole === "guardian") {
+      console.log("⛔ guardian 역할이므로 타임라인 기록 스킵");
+      return;
+    }
 
     try {
-      if (!HealthModule) return;
+      console.log("📡 HealthModule 확인 중...");
+      if (!HealthModule) {
+        console.log("⚠️ HealthModule이 없습니다");
+        return;
+      }
+      console.log("✅ HealthModule 존재 확인");
 
       // 피보호자만 자신의 uid로 저장
       const targetUid = user?.uid;
+      console.log("🆔 타임라인 - targetUid:", targetUid);
+      
       if (!targetUid) {
-        console.warn("uid가 아직 로드되지 않았습니다.");
+        console.warn("⚠️ uid가 아직 로드되지 않았습니다.");
         return;
       }
 
       const today = new Date().toISOString().split("T")[0];
+      console.log("📡 타임라인용 HealthModule 데이터 수집 중...");
       const data = await HealthModule.getTodayHealthData();
+      console.log("📊 타임라인 - 가져온 데이터:", data);
 
       const now = new Date();
       const timeString = `${today} ${now
@@ -164,7 +202,7 @@ export default function DetailScreen() {
         .toString()
         .padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
 
-      await addDoc(collection(db, "healthTimeline"), {
+      const timelineData = {
         uid: targetUid,
         date: today,
         timestamp: timeString,
@@ -173,16 +211,24 @@ export default function DetailScreen() {
         calories: data.calories ?? 0,
         distance: data.distance ?? 0,
         createdAt: serverTimestamp(),
-      });
+      };
+      console.log("🧾 타임라인 - Firestore에 저장할 데이터:", timelineData);
 
-      console.log("시간별 기록 추가 완료:", timeString);
+      console.log("📝 타임라인 문서 생성 중...");
+      await addDoc(collection(db, "healthTimeline"), timelineData);
+
+      console.log("✅ 시간별 기록 추가 완료:", timeString);
     } catch (err) {
-      console.error("시간별 기록 저장 오류:", err);
+      console.error("❌ 시간별 기록 저장 오류:", err);
     }
-  }, [role, user, isToday]);
+  }, [role, cachedRole, user, isToday]);
 
+  // 🔹 role이 업데이트되면 cachedRole에 저장
   useEffect(() => {
-    if (role) setCachedRole(role);
+    if (role) {
+      console.log("🔄 Role 캐시 업데이트:", role);
+      setCachedRole(role);
+    }
   }, [role]);
 
   // 실시간 구독: 최신 데이터 (메인 카드)
@@ -250,35 +296,73 @@ export default function DetailScreen() {
 
   // 초기 로드 (피보호자만 저장)
   useEffect(() => {
-    if (isToday && role === "elderly") {
+    const effectiveRole = cachedRole || role;
+    
+    if (isToday && effectiveRole === "elderly") {
+      console.log("🚀 초기 데이터 로드 시작");
       fetchAndSaveHealthData(true);
       saveTimelineRecord();
     } else {
       setLoading(false);
     }
-  }, [fetchAndSaveHealthData, saveTimelineRecord, isToday, role]);
+  }, [fetchAndSaveHealthData, saveTimelineRecord, isToday, role, cachedRole]);
 
-  // 1분마다 최신 데이터 업데이트 (피보호자만)
+  // ✅ 자동저장 & 타임라인 기록 루프 (role 늦게 로드돼도 자동 활성화)
   useEffect(() => {
-    if (!isToday || role === "guardian") return;
+    console.log("🟢 자동저장 useEffect 실행됨");
+    
+    let healthInterval: NodeJS.Timeout | null = null;
+    let timelineInterval: NodeJS.Timeout | null = null;
+    let roleCheckInterval: NodeJS.Timeout | null = null;
 
-    const interval = setInterval(() => {
-      fetchAndSaveHealthData(false);
-    }, 60000);
+    const startIntervals = () => {
+      console.log("✅ Role 확인됨 → 자동 저장 루프 시작!");
 
-    return () => clearInterval(interval);
-  }, [fetchAndSaveHealthData, isToday, role]);
+      // 🔁 1분마다 healthData 저장
+      healthInterval = setInterval(() => {
+        console.log("💾 [자동저장] healthData 저장 실행");
+        fetchAndSaveHealthData(false);
+      }, 60000);
 
-  // 5분마다 시간별 기록 추가 (피보호자만)
-  useEffect(() => {
-    if (!isToday || role === "guardian") return;
+      // 🔁 1분마다 타임라인 기록 추가
+      timelineInterval = setInterval(() => {
+        console.log("📊 [자동기록] healthTimeline 추가 실행");
+        saveTimelineRecord();
+      }, 60000);
+    };
 
-    const interval = setInterval(() => {
-      saveTimelineRecord();
-    }, 300000);
+    const waitForRole = () => {
+      console.log("👀 Role 체크 시작됨");
+      
+      roleCheckInterval = setInterval(() => {
+        const effectiveRole = cachedRole || role;
+        console.log("🔍 현재 role 상태:", effectiveRole, "/ isToday:", isToday);
+        
+        if (effectiveRole === "elderly" && isToday) {
+          console.log("🎯 role=elderly 확인됨 → 루프 시작");
+          startIntervals();
+          if (roleCheckInterval) clearInterval(roleCheckInterval);
+        } else if (effectiveRole === "guardian") {
+          console.log("🛑 guardian 역할 → 자동저장 불필요, 체크 중단");
+          if (roleCheckInterval) clearInterval(roleCheckInterval);
+        } else if (!isToday) {
+          console.log("🛑 오늘이 아님 → 자동저장 불필요, 체크 중단");
+          if (roleCheckInterval) clearInterval(roleCheckInterval);
+        } else {
+          console.log("⏳ role 아직 준비 중... 자동저장 대기");
+        }
+      }, 2000); // 2초마다 role 체크
+    };
 
-    return () => clearInterval(interval);
-  }, [saveTimelineRecord, isToday, role]);
+    waitForRole();
+
+    return () => {
+      console.log("🟠 자동 저장/기록 루프 종료 (unmount)");
+      if (healthInterval) clearInterval(healthInterval);
+      if (timelineInterval) clearInterval(timelineInterval);
+      if (roleCheckInterval) clearInterval(roleCheckInterval);
+    };
+  }, [role, cachedRole, isToday, fetchAndSaveHealthData, saveTimelineRecord]);
 
   const onSignOut = async () => {
     if (loggingOut) return;
@@ -286,16 +370,18 @@ export default function DetailScreen() {
       setLoggingOut(true);
       await signOut();
       await AsyncStorage.removeItem("authToken");
-      console.log("로그아웃 완료");
+      console.log("✅ 로그아웃 완료");
     } catch (e) {
-      console.warn("로그아웃 실패:", e);
+      console.warn("❌ 로그아웃 실패:", e);
     } finally {
       setLoggingOut(false);
     }
   };
 
   const handleRefresh = () => {
-    if (isToday && role === "elderly") {
+    const effectiveRole = cachedRole || role;
+    if (isToday && effectiveRole === "elderly") {
+      console.log("🔄 수동 새로고침 실행");
       fetchAndSaveHealthData(false);
     }
   };
@@ -316,7 +402,7 @@ export default function DetailScreen() {
           <View style={styles.headerTop}>
             <Text style={styles.headerTitle}>건강 모니터</Text>
             <View style={styles.headerButtons}>
-              {isToday && role === "elderly" && (
+              {isToday && (cachedRole || role) === "elderly" && (
                 <Pressable
                   onPress={handleRefresh}
                   disabled={isRefreshing}
@@ -431,12 +517,12 @@ export default function DetailScreen() {
               <Text style={styles.emptyMainIcon}>📊</Text>
               <Text style={styles.emptyMainText}>
                 {isToday
-                  ? role === "guardian"
+                  ? (cachedRole || role) === "guardian"
                     ? "피보호자의 건강 데이터가 아직 없습니다."
                     : "오늘의 건강 데이터가 없습니다."
                   : "해당 날짜의 건강 데이터가 없습니다."}
               </Text>
-              {isToday && role === "elderly" && (
+              {isToday && (cachedRole || role) === "elderly" && (
                 <Pressable style={styles.emptyMainBtn} onPress={handleRefresh}>
                   <Text style={styles.emptyMainBtnText}>데이터 불러오기</Text>
                 </Pressable>
@@ -525,10 +611,11 @@ export default function DetailScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
+      {/* 로그아웃 확인 모달 */}
       <LogoutConfirmModal
         visible={logoutModalVisible}
         loading={loggingOut}
-        role={cachedRole || "elderly"} // ✅ 캐시된 역할 사용
+        role={cachedRole || role || "elderly"}
         onCancel={() => setLogoutModalVisible(false)}
         onConfirm={() => {
           setLogoutModalVisible(false);
@@ -537,22 +624,14 @@ export default function DetailScreen() {
         }}
       />
 
+      {/* 로그아웃 성공 모달 */}
       <LogoutSuccessModal
         visible={logoutSuccessVisible}
-        role={role ?? "guardian"} // ✅ 동일하게
+        role={cachedRole || role || "elderly"}
         onClose={() => {
           setLogoutSuccessVisible(false);
-          router.replace(`/sign-in?role=${role}`);
-        }}
-      />
-
-      <LogoutSuccessModal
-        visible={logoutSuccessVisible}
-        role={cachedRole || "elderly"} // ✅ 캐시된 역할 사용
-        onClose={() => {
-          setLogoutSuccessVisible(false);
-          // ✅ 역할별로 정확히 이동
-          if (cachedRole === "guardian") {
+          const finalRole = cachedRole || role;
+          if (finalRole === "guardian") {
             router.replace("/sign-in?role=guardian");
           } else {
             router.replace("/sign-in?role=elderly");
